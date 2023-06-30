@@ -24,7 +24,8 @@ Minecraft has various structures that are generated in the world, such as villag
 There's only a dozen lines of Minecraft code needed to understand this, and I've simplified and commented it heavily:
 
 ```java
-protected boolean canSpawnStructureAtCoords(int chunkX, int chunkZ) { // (chunkX, chunkZ) is being loaded
+// (chunkX,chunkZ) is being loaded, and this function checks if it should generate a woodland mansion
+protected boolean canSpawnStructureAtCoords(int chunkX, int chunkZ) {
 
     // divide by 80, rounding down, to determine which "woodland region" (my made up term) we're considering
     int woodlandRegionX = Math.floorDiv(chunkX, 80);
@@ -140,7 +141,7 @@ Now, as we step backwards, we would like to check at each step whether this seed
 
 The Minecraft world ranges from -30 million to +30 million blocks. Each "woodland region" (an area of the world where a single woodland mansion is placed at random, as per the code shown previously) is 80 by 80 chunks, which is 1280 by 1280 blocks. This is 23437.5 woodland regions, but for all of our code we just rounded up to 23440 because it's a round number and even though your player can't travel beyond 30 million, you load chunks beyond it just by standing near it, and we just didn't want to have to worry about all that.
 
-So, -23440 to +23400 on both X and Z axes. That's `(23440*2+1)^2` (aka `2197828161`) possible woodland regions, each of which generates a unique "mansion seed" (defined as a seed that reveals that someone just loaded a chunk at a certain woodland region). Could we iterate over all 2.2 billion mansion seeds to check each one? Would be too slow. Could make a `HashMap<Long>` with 2.2 billion entries? Would take up too much RAM even using [chronicle map](https://github.com/OpenHFT/Chronicle-Map) like we did in nocom, and even in C++ using `abseil-cpp` it used like 50gb ram. We need to be able to check if something is a mansion seed. And that's not to mention the other part: we actually want to learn where they are in the world (that's the whole point). So it's not good enough to learn this is a mansion seed, we also want to (efficiently) learn which woodland region caused it.
+So, -23440 to +23440 on both X and Z axes. That's `(23440*2+1)^2` (aka `2197828161`) possible woodland regions, each of which generates a unique "mansion seed" (defined as a seed that reveals that someone just loaded a chunk at a certain woodland region). Could we iterate over all 2.2 billion mansion seeds to check each one? Would be too slow. Could make a `HashMap<Long>` with 2.2 billion entries? Would take up too much RAM even using [chronicle map](https://github.com/OpenHFT/Chronicle-Map) like we did in nocom, and even in C++ using `abseil-cpp` it used like 50gb ram. We need to be able to check if something is a mansion seed. And that's not to mention the other part: we actually want to learn where they are in the world (that's the whole point). So it's not good enough to learn this is a mansion seed, we also want to (efficiently) learn which woodland region caused it.
 
 Recall the function that goes from woodland region to mansion seed (note: I've now combined some constants since the code above for simplicity, *this equation is now specialized to 2b2t's seed*, you'd need different constants for any other Minecraft world):
 `seed = x * 341873128712 + z * 132897987541 - 4172144997891902323 mod 2^48`
