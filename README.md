@@ -2,18 +2,20 @@
 
 "Randar" is an exploit for Minecraft, which uses [LLL lattice reduction](https://en.wikipedia.org/wiki/Lenstra%E2%80%93Lenstra%E2%80%93Lov%C3%A1sz_lattice_basis_reduction_algorithm) to remotely determine (i.e. crack) the internal state of the Minecraft server's `java.util.Random` then works backwards from that to locate other players.
 
-**The goal** is to determine the in-game locations (i.e. coordinates) of the other players on the server, no matter how far away they are. We're playing on [2b2t](https://en.wikipedia.org/wiki/2b2t), which is the oldest and most famous "anarchy" Minecraft server (which means no rules, i.e. players aren't banned for any reason). Doing stuff like this is kind of "the point" on this server. On this server, the only thing keeping your stuff safe is that the map is huge (3.6 quadrillion square tiles) and no one else knows where you are. So it's a huge deal (a game-breaking deal) to have a coordinate exploit. Speaking of, before Randar we also had another coord exploit on 2b2t, Nocom, from 2018 to 2021 (see that writeup [here](https://github.com/nerdsinspace/nocom-explanation/blob/main/README.md)).
+**The goal** is to determine the in-game locations (i.e. coordinates) of the other players in the world, no matter how far away they are. We're playing on [2b2t](https://en.wikipedia.org/wiki/2b2t), which is the oldest and most famous "anarchy" Minecraft server (which means no rules, i.e. players aren't banned for any reason). Doing stuff like this is kind of "the point" on this server. On this server, the only thing keeping your stuff safe is that the map is huge (3.6 quadrillion square tiles) and no one else knows where you are. So it's a huge deal (a game-breaking deal) to have a coordinate exploit. Speaking of, before Randar we also had another coord exploit on 2b2t, Nocom, from 2018 to 2021 (see that writeup [here](https://github.com/nerdsinspace/nocom-explanation/blob/main/README.md), [HN](https://news.ycombinator.com/item?id=29615428), [YT](https://www.youtube.com/watch?v=elqAh3GWRpA)).
 
-**The mistake** in Minecraft's code, from versions Beta 1.8 (released 2011) through 1.12.2 (released 2017, although 2b2t is still on this version through present day), is that various instances of the random number generator, `java.util.Random`, are reused sloppily in various parts of the code (and they're insecure to begin with). Specifically, there's reuse of RNG between generating terrain and in game actions such as mining blocks.
+**The mistake** in Minecraft's code, from versions Beta 1.8 (released 2011) through 1.12.2 (released 2017, but 2b2t is still on this version), is that various instances of the random number generator, `java.util.Random`, are reused sloppily in various parts of the code (and they're insecure to begin with). Specifically, there's reuse of RNG between generating terrain and in game actions such as mining blocks.
 
 **The exploit** summarized:
 
-1. Some player on the server (our victim) walks around, causing a chunk (a 16x16 blocks section of the map) to be loaded into memory server-side.
-2. The server checks if certain structures are being generated in that chunk, such as villages and woodland mansions. Woodland mansion is checked last. Due to sloppy code in Minecraft, the global `World.rand` has its seed reset to a function of the chunk coordinates, in order to check where a nearby woodland mansion should be (and whether it's this chunk in particular).
+1. Some player on the server (our victim) walks around, causing a chunk (a 16x16 blocks section of the map) to be loaded into memory server-side. This happens normally all the time.
+2. The server checks if certain structures are being generated in that chunk, and the last one to be checked is the [Woodland Mansion](https://minecraft.fandom.com/wiki/Woodland_Mansion). Due to sloppy code in Minecraft, the global `World.rand` has its seed reset to a function of the chunk coordinates, in order to check where a nearby woodland mansion should be (and whether it's this chunk in particular).
 3. One of our bot players, also on 2b2t but at an unrelated location, mines a block very soon after. The dropped item appears at a random coordinate within the mined block, determined by three consecutive `World.rand.nextFloat()` calls to pick the X Y and Z coordinates between 0 and 1. The bot records the timestamp and the precise X Y Z values.
 4. By using lattice reduction, we can determine the exact internal state of `World.rand` that caused those three floats. Broadly speaking (more detail will come later), observing one output of the RNG could imply any one of about 16 million possible internal states of the RNG. However, we have sampled the output of the RNG not just once but three times in a row (the X, Y, and Z coordinates of the dropped item), and we know how the internal state is updated between each call (a simple multiply, add, then mod); therefore we can use lattice methods to essentially instantly narrow it down to the only possibility.
 5. We step the RNG state backwards until we find one that could have been caused by a woodland mansion check. Again broadly speaking, the internal state of `java.util.Random` can be stepped backwards just as easily as forwards, and by stepping backwards we can find it in just a few thousand steps (even on busy servers like 2b2t with many players and therefore heavy usage of RNG), which almost certainly identifies the most recent reset of the RNG's internal state, and therefore the location of the most recent chunk that was loaded on the server.
 6. A heatmap is built up over time from that database, and we pay some of the hotspots a visit in game and maybe steal their stuff or generally just cause chaos
+
+Randar was discovered by n0pdr0pz, and this writeup was written by leijurv.
 
 ## More detail
 
@@ -68,7 +70,7 @@ The problem is that it modifies the seed of the global `World.rand`. This is jus
 
 Crucially, the `setRandomSeed` is called **in order to check** where the woodland mansion should go. It happens no matter what, on every chunk load, everywhere. You don't have to be standing in/near the woodland mansion or anything like that.
 
-Well, this is used by everything. For example, when you mine a block:
+Well, turns out `World.rand` is in literally hundreds of places, and many of those places can be easily observed by playing the game normally. For example, when you mine a block:
 
 ```java
 /**
@@ -114,7 +116,7 @@ And we can do this three times in a row, for the X, the Y, and the Z.
 
 And we know that between the X and the Y, and between the Y and the Z, the seed was updated according to `newSeed = (oldSeed * 25214903917 + 11) mod 2^48`
 
-I must mention that one valid option is a for loop that tries all 2^24 possible lower bits. For the programmers reading this, I hope this makes clear what the problem is:
+I must mention that one valid option is a for-loop that tries all 2^24 possible lower bits. For the programmers reading this, I hope this makes clear what the problem is:
 
 ```java
 for (long seed = firstMeasurement << 24; seed < (firstMeasurement + 1) << 24; seed++) {
@@ -141,10 +143,13 @@ Now, as we step backwards, we would like to check at each step whether this seed
 
 The Minecraft world ranges from -30 million to +30 million blocks. Each "woodland region" (an area of the world where a single woodland mansion is placed at random, as per the code shown previously) is 80 by 80 chunks, which is 1280 by 1280 blocks. This is 23437.5 woodland regions, but for all of our code we just rounded up to 23440 because it's a round number and even though your player can't travel beyond 30 million, you load chunks beyond it just by standing near it, and we just didn't want to have to worry about all that.
 
-So, -23440 to +23440 on both X and Z axes. That's `(23440*2+1)^2` (aka `2197828161`) possible woodland regions, each of which generates a unique "mansion seed" (defined as a seed that reveals that someone just loaded a chunk at a certain woodland region). Could we iterate over all 2.2 billion mansion seeds to check each one? Would be too slow. Could make a `HashMap<Long>` with 2.2 billion entries? Would take up too much RAM even using [chronicle map](https://github.com/OpenHFT/Chronicle-Map) like we did in nocom, and even in C++ using `abseil-cpp` it used like 50gb ram. We need to be able to check if something is a mansion seed. And that's not to mention the other part: we actually want to learn where they are in the world (that's the whole point). So it's not good enough to learn this is a mansion seed, we also want to (efficiently) learn which woodland region caused it.
+So, -23440 to +23440 on both X and Z axes. That's `(23440*2+1)^2` (aka `2197828161`) possible woodland regions, each of which generates a unique "mansion seed" (defined as a seed that reveals that someone just loaded a chunk at a certain woodland region). We need to be able to check if something is a mansion seed. Could we iterate over all 2.2 billion mansion seeds to check each one? Would be too slow. Could make a `HashSet<Long>` with 2.2 billion entries? Would take up too much RAM even using [chronicle map](https://github.com/OpenHFT/Chronicle-Map) like we [did in nocom](https://github.com/nerdsinspace/nocomment-master/blob/master/src/main/java/nocomment/master/slurp/SlurpManager.java#L102), and even in C++ using `abseil-cpp` it used like 50gb ram. And that's not to mention the other part: we actually want to learn where they are in the world (that's the whole point). So it's not good enough to learn this is a mansion seed, we also want to (efficiently) learn which woodland region caused it.
 
 Recall the function that goes from woodland region to mansion seed (note: I've now combined some constants since the code above for simplicity, *this equation is now specialized to 2b2t's seed*, you'd need different constants for any other Minecraft world):
-`seed = x * 341873128712 + z * 132897987541 - 4172144997891902323 mod 2^48`
+
+```
+seed = x * 341873128712 + z * 132897987541 - 4172144997891902323 mod 2^48
+```
 
 Not much we can do with the x coordinate, since it's being multiplied by an even number. But what's that coefficient on the z coordinate? It looks like an odd number!!! Let's use the same trick as before to [invert it](https://en.wikipedia.org/wiki/Modular_multiplicative_inverse) again, and [we get](https://www.wolframalpha.com/input?i=132897987541%5E-1+mod+2%5E48) `211541297333629`.
 
@@ -156,7 +161,7 @@ The equation is:
 z = (seed + 4172144997891902323 - x * 341873128712) * 211541297333629 mod 2^48
 ```
 
-So this is a pretty good solution, here it is in Java:
+So this is a pretty good solution because instead of two nested loops (one for X and one for Z) that do a total of 2.2 billion iterations, we can have a single for-loop for X that just does 46,881 iterations. Here it is in Java:
 
 ```java
 private static WoodlandRegionCoord woodlandValid(long seed) {
@@ -233,7 +238,7 @@ So, you can visually see that this has a predictable structure, although it isn'
 
 A lattice is a set of points in space that are all integer multiples of some vectors that form a basis for the lattice. Lattices have the property that you can add together any of its points, and get to another point in the lattice (e.g. if `(1,2)` and `(500, 700)` are points in the lattice, then `(501, 702)` must also be a point in the lattice). These plots are (almost) lattices (you just have to shift all the points by a bit, because lattices technically have to include the `(0,0)` point, we'll do this later). The intuition for lattices is that they're conceptually a grid, but, squish squashed in some way. If you sorta tilt your head, you can see how you could take a grid of points, squish/tilt them, and get this plot.
 
-In our case, we get three measurements, so we'll actually be using a 3D plot where the Z axis is `nextSeed(nextSeed(seed))` (but the X and Y axes are unchanged). Here's what that looks like:
+In our case, we get three measurements (not just two), so we'll actually be using a 3D plot where the Z axis is `nextSeed(nextSeed(seed))` (but the X and Y axes are still the same). Here's what that looks like:
 
 ![lattice reduction](media/img3.gif)
 
@@ -274,9 +279,6 @@ LatticeReduce[{{1, a, a^2}, {0, c, 0}, {0, 0, c}}]
 Our new vectors are `(1270789291, -2446815537, 2154219555)`, `(-2355713969, 1026597795, 4110294631)`, and `(-3756485696, -2345310016, -2015749696)`. Note how they're all pretty small now! None are more than ten digits, while our previous basis vectors were bigger. Remember, any combination of these three new vectors will result in a point that also is a combination of our three original vectors. Their lattices are indistinguishable.
 
 Now here's the cool part. We can take our range, the cube that represents our search space, and **transform it into a range in this reduced space** via a [change of basis](https://en.wikipedia.org/wiki/Change_of_basis). If we treat our new basis vectors as the columns of a matrix, then invert that matrix, we have a magic key that transforms points in lattice space, into points in reduced basis space. There are two crucial realizations for why this is helpful: 1. any point with integer coordinates in reduced basis space will become a valid lattice point when converted back into lattice space (since it's a matrix multiplication by the lattice basis vectors, which we can see are integers) 2. the new lattice basis vectors are much smaller and more perpendicular, so the transformed cube (really a polytope now) is very small. If it were larger, we might have to do some [complicated iterating through multidimensional space](https://github.com/mjtb49/LattiCG), but in this case, for these specific parameters used in `java.util.Random`, and given the fact that we get three consecutive samples not just two, this process works so well that we don't even need to transform the entire range of the cube. We can just pick the exact center of our cube (i.e. make a guess of a single point), convert to reduced basis space, and **just round to the nearest integer**. Recall that we're trying to find any lattice point in our cube, and any point with integer coordinates in reduced basis space represents a valid lattice point. So, if our cube contains any point with integer coordinates we're done, the problem is solved. This can only "go wrong" (produce the wrong answer) if rounding to the nearest integer took us from a point inside the transformed cube to a point outside, but assuming we're operating on good data (aka measurements that truly did come from `java.util.Random`), there will be an integer point in the transformed cube, so this does work every time (since our transformed cube is tiny). (the "worked example" section later on will make this clear and apparent). Anyway this integer point in reduced basis space becomes a valid integer point in lattice space, which solves the problem since we've found a valid lattice point within the cube.
-
-
-(an aside on the LLL vectors: you can see that each of these is still a lattice point. For example let's check the first one. `Mod[1270789291 * a, 2^48] == 2^48-2446815537` and `Mod[1270789291 * a^2, 2^48] == 2154219555`. Yep! Still matching `(seed, nextSeed(seed), nextSeed(nextSeed(seed)))`, just allowing negatives. Therefore, since all three are lattice points, any integer linear combination of them is also still a lattice point. The cool part that the LLL algorithm gave us, is that all three of these, put together as columns, form an invertible matrix. They're a true new basis. Any old lattice point is also a new lattice point, and vice versa. (verified since `Inverse[Transpose[LatticeReduce[{{1, a, a^2}, {0, c, 0}, {0, 0, c}}]]] . Transpose[{{1, a, a^2}, {0, c, 0}, {0, 0, c}}]` are all integers.))
 
 ### Worked example
 
