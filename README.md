@@ -234,7 +234,7 @@ Then, it approaches the modulus, and wraps around back to zero each time that ha
 
 ![lattice reduction](media/img2.png)
 
-So, you can visually see that this has a predictable structure, although it isn't quite a straight line anymore. This structure is called a lattice.
+So, you can visually see that this has a predictable structure, although it isn't quite a straight line anymore. This structure is called a [lattice](https://en.wikipedia.org/wiki/Lattice_(group)).
 
 A lattice is a set of points in space that are all integer multiples of some vectors that form a basis for the lattice. Lattices have the property that you can add together any of its points, and get to another point in the lattice (e.g. if `(1,2)` and `(500, 700)` are points in the lattice, then `(501, 702)` must also be a point in the lattice). These plots are (almost) lattices (you just have to shift all the points by a bit, because lattices technically have to include the `(0,0)` point, we'll do this later). The intuition for lattices is that they're conceptually a grid, but, squish squashed in some way. If you sorta tilt your head, you can see how you could take a grid of points, squish/tilt them, and get this plot.
 
