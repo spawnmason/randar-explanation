@@ -313,17 +313,17 @@ Here's that same approach, but simplified and optimized (no need to read this):
 public static long crack(int rngMeasurement1, int rngMeasurement2, int rngMeasurement3) {
     long bound0Mid = ((long)rngMeasurement1 << 24) + 8388608L;
     long bound1Mid = ((long)rngMeasurement2 << 24) + 8388597L;
-    long bound2Mid = ((long)rngMeasurement3 << 24) + -277355554490L;
-    double bound0 = 9.555378710501827E-11 * (double)bound0Mid + -2.5481838861196593E-10 * (double)bound1Mid + 1.184083942007419E-10 * (double)bound2Mid;
-    double bound1 = -1.2602185961441137E-10 * (double)bound0Mid + 6.980727107475104E-11 * (double)bound1Mid + 1.5362999761237006E-10 * (double)bound2Mid;
-    double bound2 = -1.5485213111787743E-10 * (double)bound0Mid + -1.2997958265259513E-10 * (double)bound1Mid + -5.6285642813236336E-11 * (double)bound2Mid;
+    long bound2Mid = ((long)rngMeasurement3 << 24) - 277355554490L;
+    double bound0 = 9.555378710501827E-11 * bound0Mid + -2.5481838861196593E-10 * bound1Mid + 1.184083942007419E-10 * bound2Mid;
+    double bound1 = -1.2602185961441137E-10 * bound0Mid + 6.980727107475104E-11 * bound1Mid + 1.5362999761237006E-10 * bound2Mid;
+    double bound2 = -1.5485213111787743E-10 * bound0Mid + -1.2997958265259513E-10 * bound1Mid + -5.6285642813236336E-11 * bound2Mid;
     long result0 = Math.round(bound0);
     long result1 = Math.round(bound1);
     long result2 = Math.round(bound2);
     long seed = result0 * 1270789291L + result1 * -2355713969L + result2 * -3756485696L & 281474976710655L;
     long next = seed * 25214903917L + 11L & 281474976710655L;
     long nextNext = next * 25214903917L + 11L & 281474976710655L;
-    return (seed >> 24 ^ (long)rngMeasurement1 | next >> 24 ^ (long)rngMeasurement2 | nextNext >> 24 ^ (long)rngMeasurement3) != 0L ? -1L : seed;
+    return (seed >> 24 ^ rngMeasurement1 | next >> 24 ^ rngMeasurement2 | nextNext >> 24 ^ rngMeasurement3) != 0L ? -1L : seed;
 }
 ```
 
