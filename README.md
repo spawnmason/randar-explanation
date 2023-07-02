@@ -164,7 +164,8 @@ z = (seed + 4172144997891902323 - x * 341873128712) * 211541297333629 mod 2^48
 So this is a pretty good solution because instead of two nested loops (one for X and one for Z) that do a total of 2.2 billion iterations, we can have a single for-loop for X that just does 46,881 iterations. Here it is in Java:
 
 ```java
-private static WoodlandRegionCoord woodlandValid(long seed) {
+private static WoodlandRegionCoord woodlandValid(long internalSeed) {
+    long seed = 25214903917 ^ internalSeed; // java.util.Random XORs in the multiplier while doing setSeed, so XOR that back out to go from a "this.seed" to what the input to setSeed() would be
     for (int x = -23440; x <= 23440; x++) {
         long z = ((seed + 4172144997891902323L - x * 341873128712L) * 211541297333629L) << 16 >> 16;
         if (z >= -23440 && z <= 23440) {
@@ -183,7 +184,7 @@ Anyway so we switched to a lookup table approach and rewrote it in Cuda to run o
 
 The woodland check function now looks like (again, this is the actual code but simplified, all helpers and constants inlined etc):
 
-```
+```cpp
 __global__ void computeSteps(const int16_t* mansionTable, const int64_t* seedsArr, Result* resultArr, size_t numData) {
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
     [[unlikely]] if (tid >= numData) {
@@ -192,8 +193,9 @@ __global__ void computeSteps(const int16_t* mansionTable, const int64_t* seedsAr
     auto seed = seedsArr[tid];
     int steps = 0;
     while (true) {
-        const auto x = mansionTable[seed & ((1LL << 32) - 1)];
-        const auto z = ((seed + 4172144997891902323LL - (int64_t) x * 341873128712LL) * 211541297333629LL) << 16 >> 16;
+        auto externalSeed = seed ^ 25214903917;
+        const auto x = mansionTable[externalSeed & ((1LL << 32) - 1)];
+        const auto z = ((externalSeed + 4172144997891902323LL - (int64_t) x * 341873128712LL) * 211541297333629LL) << 16 >> 16;
         if (z >= -23440 & z <= 23440) {
             resultArr[tid] = {.startSeed = seedsArr[tid], .x = (int16_t) x, .z = (int16_t) z, .steps = steps};
             return;
@@ -201,6 +203,17 @@ __global__ void computeSteps(const int16_t* mansionTable, const int64_t* seedsAr
         seed = prevSeed(seed);
         steps++;
     }
+}
+
+// and that mansionTable was generated like this
+// note: mansionTable must be calloc'd before this function because not every entry will be written to, and an x value outside -23440 to 23440 bounds could create a false positive later on while using the table
+__global__ void writeToSeedTable(int16_t* mansionTable) {
+    auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= (23440 * 2 + 1) * (23440 * 2 + 1)) return;
+    auto x = tid / (23440 * 2 + 1) - 23440;
+    auto z = tid % (23440 * 2 + 1) - 23440;
+    auto seed = ((int64_t) x * 341873128712LL + (int64_t) z * 132897987541LL - 4172144997891902323LL) & ((1LL << 48) - 1);
+    mansionTable[seed & ((1LL << 32) - 1)] = (int16_t) x;
 }
 ```
 
