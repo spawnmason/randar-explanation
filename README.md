@@ -200,7 +200,7 @@ __global__ void computeSteps(const int16_t* mansionTable, const int64_t* seedsAr
             resultArr[tid] = {.startSeed = seedsArr[tid], .x = (int16_t) x, .z = (int16_t) z, .steps = steps};
             return;
         }
-        seed = prevSeed(seed);
+        seed = ((seed - 0xBLL) * 0xdfe05bcb1365LL) & ((1LL << 48) - 1); // prevSeed(seed)
         steps++;
     }
 }
@@ -330,16 +330,16 @@ Aside: now, what if we used the original basis vectors of `(1, a, a^2)`, `(0, c,
 Here's that same approach, but simplified and optimized (no need to read this):
 ```java
 public static long crack(int rngMeasurement1, int rngMeasurement2, int rngMeasurement3) {
-    long bound0Mid = ((long)rngMeasurement1 << 24) + 8388608L;
-    long bound1Mid = ((long)rngMeasurement2 << 24) + 8388597L;
-    long bound2Mid = ((long)rngMeasurement3 << 24) - 277355554490L;
-    double bound0 = 9.555378710501827E-11 * bound0Mid + -2.5481838861196593E-10 * bound1Mid + 1.184083942007419E-10 * bound2Mid;
-    double bound1 = -1.2602185961441137E-10 * bound0Mid + 6.980727107475104E-11 * bound1Mid + 1.5362999761237006E-10 * bound2Mid;
-    double bound2 = -1.5485213111787743E-10 * bound0Mid + -1.2997958265259513E-10 * bound1Mid + -5.6285642813236336E-11 * bound2Mid;
-    long result0 = Math.round(bound0);
-    long result1 = Math.round(bound1);
-    long result2 = Math.round(bound2);
-    long seed = result0 * 1270789291L + result1 * -2355713969L + result2 * -3756485696L & 281474976710655L;
+    long cubeCenterX = ((long)rngMeasurement1 << 24) + 8388608L;
+    long cubeCenterY = ((long)rngMeasurement2 << 24) + 8388597L;
+    long cubeCenterZ = ((long)rngMeasurement3 << 24) - 277355554490L;
+    double basisCoeff0 = 9.555378710501827E-11 * cubeCenterX + -2.5481838861196593E-10 * cubeCenterY + 1.184083942007419E-10 * cubeCenterZ;
+    double basisCoeff1 = -1.2602185961441137E-10 * cubeCenterX + 6.980727107475104E-11 * cubeCenterY + 1.5362999761237006E-10 * cubeCenterZ;
+    double basisCoeff2 = -1.5485213111787743E-10 * cubeCenterX + -1.2997958265259513E-10 * cubeCenterY + -5.6285642813236336E-11 * cubeCenterZ;
+    long roundedCoeff0 = Math.round(basisCoeff0);
+    long roundedCoeff1 = Math.round(basisCoeff1);
+    long roundedCoeff2 = Math.round(basisCoeff2);
+    long seed = roundedCoeff0 * 1270789291L + roundedCoeff1 * -2355713969L + roundedCoeff2 * -3756485696L & 281474976710655L;
     long next = seed * 25214903917L + 11L & 281474976710655L;
     long nextNext = next * 25214903917L + 11L & 281474976710655L;
     return (seed >> 24 ^ rngMeasurement1 | next >> 24 ^ rngMeasurement2 | nextNext >> 24 ^ rngMeasurement3) != 0L ? -1L : seed;
@@ -351,9 +351,9 @@ This has some additional sanity checking at the bottom (to make sure it's a real
 `crack(7338710, 7668738, 5563335)` (those are the three measurements from earlier) will return `123123123123123` as expected.
 
 The idea of that code is:
-1. `(bound0Mid, bound1Mid, bound2Mid)` are the x,y,z coordinates of the center of the cube in lattice space. Their offsets are 8388608 (aka 2^23) minus the `(0, b, a*b+b)` offset mentioned earlier.
-2. `(bound0, bound1, bound2)` are the coordinates of the center of the cube in reduced basis space. Those random looking coefficients are `Inverse[Transpose[LatticeReduce[{{1, a, a^2}, {0, c, 0}, {0, 0, c}}]]]` (in other words, treating the reduced basis vectors like the columns of a matrix, then doing a change of basis onto them by left multiplying by the inverse of that basis matrix)
-3. `(result0, result1, result2)` are those coordinates rounded to the nearest integer.
+1. `(cubeCenterX, cubeCenterY, cubeCenterZ)` are the x,y,z coordinates of the center of the cube in lattice space. Their offsets are 8388608 (aka 2^23) minus the `(0, b, a*b+b)` offset mentioned earlier.
+2. `(basisCoeff0, basisCoeff1, basisCoeff2)` are the coefficients of the center of the cube in reduced basis space. Those nine random looking multipliers are `Inverse[Transpose[LatticeReduce[{{1, a, a^2}, {0, c, 0}, {0, 0, c}}]]]` (in other words, treating the reduced basis vectors like the columns of a matrix, then doing a change of basis onto them by left multiplying by the inverse of that basis matrix)
+3. `(roundedCoeff0, roundedCoeff1, roundedCoeff2)` are those coefficients rounded to the nearest integer.
 4. The `seed` is found by multiplying the first component of the three reduced basis vectors by our reduced basis coordinates. We only care about the first component of course, since that's the seed.
 5. `(seed, next, nextNext)` are the seeds that would produce those three measurements, we compute `next` and `nextNext` just to make sure we're right. We could have gotten `next` and `nextNext` by computing the second and third components of the vector in the previous step, but it's faster to just do the LCG step directly.
 6. We return -1 if the computation failed (e.g. garbage data), and the actual seed if it succeeded.
