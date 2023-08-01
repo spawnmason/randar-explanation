@@ -145,11 +145,13 @@ The Minecraft world ranges from -30 million to +30 million blocks. Each "woodlan
 
 So, -23440 to +23440 on both X and Z axes. That's `(23440*2+1)^2` (aka `2197828161`) possible woodland regions, each of which generates a unique "mansion seed" (defined as a seed that reveals that someone just loaded a chunk at a certain woodland region). We need to be able to check if something is a mansion seed. Could we iterate over all 2.2 billion mansion seeds to check each one? Would be too slow. Could make a `HashSet<Long>` with 2.2 billion entries? Would take up too much RAM even using [chronicle map](https://github.com/OpenHFT/Chronicle-Map) like we [did in nocom](https://github.com/nerdsinspace/nocomment-master/blob/master/src/main/java/nocomment/master/slurp/SlurpManager.java#L102), and even in C++ using `abseil-cpp` it used like 50gb ram. And that's not to mention the other part: we actually want to learn where they are in the world (that's the whole point). So it's not good enough to learn this is a mansion seed, we also want to (efficiently) learn which woodland region caused it.
 
-Recall the function that goes from woodland region to mansion seed (note: I've now combined some constants since the code above for simplicity, *this equation is now specialized to 2b2t's seed*, you'd need different constants for any other Minecraft world):
+Recall the function that goes from woodland region to mansion seed (note: I've now combined some constants since the code above for simplicity, *this equation is now specialized to 2b2t's seed*:
 
 ```
 seed = x * 341873128712 + z * 132897987541 - 4172144997891902323 mod 2^48
 ```
+
+The `-4172144997891902323` number comes from the `-4172144997902289642 + 10387319`, which is the 2b2t world seed + the magic value used for seeding the woodland region (as shown earlier). For any other world you would just add your own seed into this equation.
 
 Not much we can do with the x coordinate, since it's being multiplied by an even number. But what's that coefficient on the z coordinate? It looks like an odd number!!! Let's use the same trick as before to [invert it](https://en.wikipedia.org/wiki/Modular_multiplicative_inverse) again, and [we get](https://www.wolframalpha.com/input?i=132897987541%5E-1+mod+2%5E48) `211541297333629`.
 
