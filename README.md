@@ -2,17 +2,17 @@
 
 "Randar" is an exploit for Minecraft, which uses [LLL lattice reduction](https://en.wikipedia.org/wiki/Lenstra%E2%80%93Lenstra%E2%80%93Lov%C3%A1sz_lattice_basis_reduction_algorithm) to remotely determine (i.e. crack) the internal state of the Minecraft server's `java.util.Random` then works backwards from that to locate other players.
 
-**The goal** is to determine the in-game locations (i.e. coordinates) of the other players in the world, no matter how far away they are. We're playing on [2b2t](https://en.wikipedia.org/wiki/2b2t), which is the oldest and most famous "anarchy" Minecraft server (which means no rules, i.e. players aren't banned for any reason). Doing stuff like this is kind of "the point" on this server. On this server, the only thing keeping your stuff safe is that the map is huge (3.6 quadrillion square tiles) and no one else knows where you are. So it's a huge deal (a game-breaking deal) to have a coordinate exploit. Speaking of, before Randar we also had another coord exploit on 2b2t, Nocom, from 2018 to 2021 (see that writeup [here](https://github.com/nerdsinspace/nocom-explanation/blob/main/README.md), [HN](https://news.ycombinator.com/item?id=29615428), [YT](https://www.youtube.com/watch?v=elqAh3GWRpA)).
+**The goal** is to determine the in-game locations (i.e. coordinates) of the other players in the world, no matter how far away they are. We're playing on [2b2t](https://en.wikipedia.org/wiki/2b2t), which is the oldest and most famous "anarchy" Minecraft server (which means no rules, i.e. players aren't banned for any reason). Doing stuff like this is kind of "the point" on this server. On this server, the only thing keeping your stuff safe is that the map is huge (3.6 quadrillion square tiles) and no one else knows where you are. So it's a huge deal (a game-breaking deal) to have a coordinate exploit. (speaking of, before Randar we also had another coord exploit on 2b2t, Nocom, from 2018 to 2021; see that writeup [here](https://github.com/nerdsinspace/nocom-explanation/blob/main/README.md), [HackerNews thread](https://news.ycombinator.com/item?id=29615428), [YT](https://www.youtube.com/watch?v=elqAh3GWRpA))
 
-**The mistake** in Minecraft's code, from versions Beta 1.8 (released 2011) through 1.12.2 (released 2017, but 2b2t is still on this version), is that various instances of the random number generator, `java.util.Random`, are reused sloppily in various parts of the code (and they're insecure to begin with). Specifically, there's reuse of RNG between generating terrain and in game actions such as mining blocks.
+**The mistake** in Minecraft's code is present from versions Beta 1.8 (released 2011) through 1.12.2 (released 2017, but 2b2t stayed on this version until August 14, 2023). The mistake is that various instances of the random number generator, `java.util.Random`, are reused sloppily in various parts of the code (and they're insecure to begin with). Specifically, there's reuse of RNG between generating terrain and in game actions such as mining blocks.
 
 **The exploit** summarized:
 
 1. Some player on the server (our victim) walks around, causing a chunk (a 16x16 blocks section of the map) to be loaded into memory server-side. This happens normally all the time.
-2. The server checks if certain structures are being generated in that chunk, and the last one to be checked is the [Woodland Mansion](https://minecraft.fandom.com/wiki/Woodland_Mansion). Due to sloppy code in Minecraft, the global `World.rand` has its seed reset to a function of the chunk coordinates, in order to check where a nearby woodland mansion should be (and whether it's this chunk in particular).
-3. One of our bot players, also on 2b2t but at an unrelated location, mines a block very soon after. The dropped item appears at a random coordinate within the mined block, determined by three consecutive `World.rand.nextFloat()` calls to pick the X Y and Z coordinates between 0 and 1. The bot records the timestamp and the precise X Y Z values.
+2. The server checks if certain structures are being generated in that chunk, and the last one to be checked is the [Woodland Mansion](https://minecraft.fandom.com/wiki/Woodland_Mansion). Due to sloppy code in Minecraft, the global `World.rand` has its seed reset to a function of the chunk coordinates, in order to check where a nearby Woodland Mansion should be (and whether it's this chunk in particular).
+3. One of our bot players, also on 2b2t but at an unrelated location, mines a block very soon after. The dropped item appears at a "random" coordinate within the mined block, determined by three consecutive `World.rand.nextFloat()` calls to pick the X Y and Z coordinates between 0 and 1. The bot records the timestamp and the precise X Y Z values.
 4. By using lattice reduction, we can determine the exact internal state of `World.rand` that caused those three floats. Broadly speaking (more detail will come later), observing one output of the RNG could imply any one of about 16 million possible internal states of the RNG. However, we have sampled the output of the RNG not just once but three times in a row (the X, Y, and Z coordinates of the dropped item), and we know how the internal state is updated between each call (a simple multiply, add, then mod); therefore we can use lattice methods to essentially instantly narrow it down to the only possibility.
-5. We step the RNG state backwards until we find one that could have been caused by a woodland mansion check. Again broadly speaking, the internal state of `java.util.Random` can be stepped backwards just as easily as forwards, and by stepping backwards we can find it in just a few thousand steps (even on busy servers like 2b2t with many players and therefore heavy usage of RNG), which almost certainly identifies the most recent reset of the RNG's internal state, and therefore the location of the most recent chunk that was loaded on the server.
+5. We step the RNG state backwards in time until we find one that could have been caused by a Woodland Mansion check. Again broadly speaking, the internal state of `java.util.Random` can be stepped backwards just as easily as forwards, and by stepping backwards we can find it in just a few thousand steps (even on busy servers like 2b2t with many players and therefore heavy usage of RNG), which identifies the most recent time that the RNG's internal state was reset, and therefore the location of the most recent chunk that was loaded on the server.
 6. A heatmap is built up over time from that database, and we pay some of the hotspots a visit in game and maybe steal their stuff or generally just cause chaos
 
 Randar was discovered by n0pdr0pz, and this writeup was written by leijurv.
@@ -26,23 +26,23 @@ Minecraft has various structures that are generated in the world, such as villag
 There's only a dozen lines of Minecraft code needed to understand this, and I've simplified and commented it heavily:
 
 ```java
-// (chunkX,chunkZ) is being loaded, and this function checks if it should generate a woodland mansion
+// (chunkX,chunkZ) is being loaded, and this function checks if it should generate a Woodland Mansion
 protected boolean canSpawnStructureAtCoords(int chunkX, int chunkZ) {
 
-    // divide by 80, rounding down, to determine which "woodland region" (my made up term) we're considering
+    // divide by 80, rounding down, to determine which "Woodland region" (my made up term) we're considering
     int woodlandRegionX = Math.floorDiv(chunkX, 80);
     int woodlandRegionZ = Math.floorDiv(chunkZ, 80);
 
-    // seed the random number generator deterministically in a way that's unique to this woodland region
+    // seed the random number generator deterministically in a way that's unique to this Woodland region
     Random random = this.world.setRandomSeed(woodlandRegionX, woodlandRegionZ, 10387319);
 
-    // pick which chunk within this region will get the woodland mansion
+    // pick which chunk within this region will get the Woodland Mansion
     int woodlandChunkX = woodlandRegionX * 80 + (random.nextInt(60) + random.nextInt(60)) / 2;
     int woodlandChunkZ = woodlandRegionZ * 80 + (random.nextInt(60) + random.nextInt(60)) / 2;
 
     // but is it *this* chunk, that we're loading right now?
     if (chunkX == woodlandChunkX && chunkZ == woodlandChunkZ) {
-        // and, is this chunk in a biome that allows woodland mansions? (e.g. roofed forest)
+        // and, is this chunk in a biome that allows Woodland Mansions? (e.g. roofed forest)
         if (this.world.getBiomeProvider().areBiomesViable(chunkX * 16 + 8, chunkZ * 16 + 8, 32, ALLOWED_BIOMES)) {
             return true;
         }
@@ -60,15 +60,15 @@ public Random setRandomSeed(int seedX, int seedY, int seedZ) {
 
 The above is commented and slightly modified for clarity, but it's functionally accurate to the real code.
 
-So the idea is to decide where the woodland mansion should go in this woodland region (which is 80 by 80 chunks), check if that place is *right here*, and if so, generate a woodland mansion starting right here.
+So the idea is to decide where the Woodland Mansion should go in this Woodland region (which is 80 by 80 chunks), check if that place is *right here*, and if so, generate a Woodland Mansion starting right here.
 
-This code might look a little silly, you might be thinking "it's absurd to do all these checks on every chunk, just pick where woodland mansions should go once per region and be done with it". The reason is that Minecraft chunks are generated independently of each other, and in unknown order, yet we still want to generate a deterministic world from a given seed. We don't know in what order the player is going to walk around the world, and it's nice to be able to generate any chunk on-demand in a stateless manner. It's a good game experience. Thus, weird-looking code like this.
+This code might look a little silly, you might be thinking "it's absurd to do all these checks on every chunk, just pick where Woodland Mansions should go once per region and be done with it". The reason is that Minecraft chunks are generated independently of each other, and in unknown order, yet we still want to generate a deterministic world from a given seed. We don't know in what order the player is going to walk around the world, and it's nice to be able to generate any chunk on-demand in a stateless manner. It's a good game experience. Thus, weird-looking code like this.
 
 Anyway, that code gets called on every chunk load, for every chunk in a large square around the one being loaded. It's a bit complicated to explain why so I'll mostly skip it (the basic idea is that these structures are (much) larger than one chunk in size, so we need to check for a structure origin in many nearby chunks in order to generate this current one correctly).
 
-The problem is that it modifies the seed of the global `World.rand`. This is just lazy coding. All they're doing is calling `nextInt` four times to pick the X and Z coordinate. They could have replaced `Random random = this.world.setRandomSeed(...` with `Random random = new Random(the same stuff)` (in other words, make a new `Random` rather than messing with the existing one that's used by everything else???).
+The problem is that it modifies the seed of the global `World.rand`. This is just lazy coding. All they're doing is calling `nextInt` four times to pick the X and Z coordinate. They could have replaced `Random random = this.world.setRandomSeed(...` with `Random random = new Random(the same stuff)` (in other words, make a new `Random` here rather than messing with the existing one that's used by everything else???).
 
-Crucially, the `setRandomSeed` is called **in order to check** where the woodland mansion should go. It happens no matter what, on every chunk load, everywhere. You don't have to be standing in/near the woodland mansion or anything like that.
+Crucially, the `setRandomSeed` is called **in order to check** where the Woodland Mansion should go. It happens no matter what, on every chunk load, everywhere. You don't have to be standing in/near the Woodland Mansion or anything like that.
 
 Well, turns out `World.rand` is used in literally hundreds of places, and many of those places can be easily observed by playing the game normally. For example, when you mine a block:
 
@@ -131,29 +131,29 @@ for (long seed = firstMeasurement << 24; seed < (firstMeasurement + 1) << 24; se
 
 This would work, and does work, but it's not that fast and not that fun. So we use lattices instead!
 
-However, I feel like I have to go a bit out of order. The lattice reduction part does come in right here but is really complicated and I bet it would have low reader retention and I don't want to lose you. So I'll just give you that for-loop solution (which DOES work), and continue to the next step of the exploit. The explanation of the lattice reduction method will come right after :)
+However, I feel like I have to go a bit out of order. The lattice reduction part does come in right here but it's really complicated and I bet it would have low reader retention and I don't want to lose you. So I'll just give you that for-loop solution (which DOES work), and continue to the next step of the exploit. The explanation of the lattice reduction method will come right after :)
 
 **What do we do with this seed once we have it?**
 
 First, note that we can step the LCG backwards. Obviously, adding eleven is reversible, but is multiplying by that big number reversible? Our multiplier `25214903917` is an odd number, meaning it isn't divisible by two, and therefore it doesn't share any factors with our modulus 2^48 (since 2^48 is literally just a bunch of twos). Since it's relatively prime to the modulus, we can [invert it](https://en.wikipedia.org/wiki/Modular_multiplicative_inverse), which means to find another number `x` that satisfies `x * 25214903917 - 1` is divisible by 2^48. Or in other words, `25214903917 * x mod 2^48 = 1`. That number [is `246154705703781`](https://www.wolframalpha.com/input?i=25214903917%5E-1+mod+2%5E48). This helps invert the multiplication because if we have, for example, `secret * 25214903917` and we want to figure out `secret`, we can just compute `secret * 25214903917 * 246154705703781 mod 2^48 = secret * 1 mod 2^48 = secret`.
 
-Ok, so we can step the internal seed of `java.util.Random` both forwards and backwards. Forwards is `newSeed = (oldSeed * 25214903917 + 11) mod 2^48` and backwards is `oldSeed = ((newSeed - 11) * 246154705703781) mod 2^48`.
+Ok, so we can step the internal seed of `java.util.Random` both forwards and backwards. Forwards is `newSeed = (oldSeed * 25214903917 + 11) mod 2^48` and backwards is `oldSeed = ((newSeed - 11) * 246154705703781) mod 2^48`. And this works because those numbers `25214903917` and `246154705703781`, when multiplied together, come out to `1` when you take it mod 2^48.
 
-Now, as we step backwards, we would like to check at each step whether this seed could mean that a woodland mansion check was recently performed somewhere in the world (the whole point of the exploit). How do we do that?
+Now, as we step backwards, we would like to check at each step whether this seed could mean that a Woodland Mansion check was recently performed somewhere in the world (the whole point of the exploit). How do we do that?
 
-The Minecraft world ranges from -30 million to +30 million blocks. Each "woodland region" (an area of the world where a single woodland mansion is placed at random, as per the code shown previously) is 80 by 80 chunks, which is 1280 by 1280 blocks. This is 23437.5 woodland regions, but for all of our code we just rounded up to 23440 because it's a round number and even though your player can't travel beyond 30 million, you load chunks beyond it just by standing near it, and we just didn't want to have to worry about all that.
+The Minecraft world ranges from -30 million to +30 million blocks. Each "Woodland region" (an area of the world where a single Woodland Mansion is placed at random, as per the code shown previously) is 80 by 80 chunks, which is 1280 by 1280 blocks. This is 23437.5 Woodland regions, but for all of our code we just rounded up to 23440 because it's a round number and even though your player can't travel beyond 30 million, you load chunks beyond it just by standing near it, and we just didn't want to have to worry about all that.
 
-So, -23440 to +23440 on both X and Z axes. That's `(23440*2+1)^2` (aka `2197828161`) possible woodland regions, each of which generates a unique "mansion seed" (defined as a seed that reveals that someone just loaded a chunk at a certain woodland region). We need to be able to check if something is a mansion seed. Could we iterate over all 2.2 billion mansion seeds to check each one? Would be too slow. Could make a `HashSet<Long>` with 2.2 billion entries? Would take up too much RAM even using [chronicle map](https://github.com/OpenHFT/Chronicle-Map) like we [did in nocom](https://github.com/nerdsinspace/nocomment-master/blob/master/src/main/java/nocomment/master/slurp/SlurpManager.java#L102), and even in C++ using `abseil-cpp` it used like 50gb ram. And that's not to mention the other part: we actually want to learn where they are in the world (that's the whole point). So it's not good enough to learn this is a mansion seed, we also want to (efficiently) learn which woodland region caused it.
+So, -23440 to +23440 on both X and Z axes. That's `(23440*2+1)^2` (aka `2197828161`) possible Woodland regions, each of which generates a unique "mansion seed" (defined as a seed that reveals that someone just loaded a chunk at a certain Woodland region). We need to be able to check if something is a mansion seed. Could we iterate over all 2.2 billion mansion seeds to check each one? Would be too slow. Could make a `HashSet<Long>` with 2.2 billion entries? Would take up too much RAM even using [chronicle map](https://github.com/OpenHFT/Chronicle-Map) like we [did in nocom](https://github.com/nerdsinspace/nocomment-master/blob/master/src/main/java/nocomment/master/slurp/SlurpManager.java#L102), and even in C++ using `abseil-cpp` it used like 50gb ram. And that's not to mention the other part: we actually want to learn where they are in the world (that's the whole point). So it's not good enough to learn this is a mansion seed, we also want to (efficiently) learn which Woodland region caused it.
 
-Recall the function that goes from woodland region to mansion seed (note: I've now combined some constants since the code above for simplicity, *this equation is now specialized to 2b2t's seed*, you'd need different constants for any other Minecraft world):
+Recall the function that goes from Woodland region to mansion seed (note: I've now combined some constants since the code above for simplicity, *this equation is now specialized to 2b2t's seed*, you'd need different constants for any other Minecraft world):
 
 ```
 seed = x * 341873128712 + z * 132897987541 - 4172144997891902323 mod 2^48
 ```
 
-Not much we can do with the x coordinate, since it's being multiplied by an even number. But what's that coefficient on the z coordinate? It looks like an odd number!!! Let's use the same trick as before to [invert it](https://en.wikipedia.org/wiki/Modular_multiplicative_inverse) again, and [we get](https://www.wolframalpha.com/input?i=132897987541%5E-1+mod+2%5E48) `211541297333629`.
+Not much we can do with the x coordinate, since it's being multiplied by an even number. But what's that coefficient on the z coordinate? It looks like an odd number!!! Let's use the same trick as before to [invert it](https://en.wikipedia.org/wiki/Modular_multiplicative_inverse) again, and [we get `211541297333629`](https://www.wolframalpha.com/input?i=132897987541%5E-1+mod+2%5E48).
 
-Let's imagine we have a given seed. What if we could just iterate through all possible X coordinates from -23440 to +23440, and for each one, **compute what the woodland region's Z coordinate WOULD be, IF it had this mansion seed**. In other words, the above equation gives us `seed` if we know `x` and `z`, but can we make an equation that gives us `z` if we know `seed` and `x`? Answer: yes. We just rearrange the above equation, and use the fact that the coefficient of Z is invertible mod 2^48 since it's an odd number.
+Let's imagine we have a given seed. What if we could just iterate through all possible X coordinates from -23440 to +23440, and for each one, **compute what the Woodland region's Z coordinate WOULD be, IF it had this mansion seed**. In other words, the above equation gives us `seed` if we know `x` and `z`, but can we make an equation that gives us `z` if we know `seed` and `x`? Answer: yes. We just rearrange the above equation, and use the fact that the coefficient of Z is invertible mod 2^48 since it's an odd number.
 
 The equation is:
 
@@ -180,7 +180,7 @@ private static WoodlandRegionCoord woodlandValid(long internalSeed) {
 
 So this does work and it's reasonably fast.... for a single seed. But remember that we're stepping back the RNG for potentially thousands of steps, and running this check at each step until we find a match. At the time, we were using a shitty DigitalOcean droplet on their lowest tier, and this was actually lagging everything out and couldn't keep up with real time (bots mining many blocks per second, each block taking thousands of rng steps to crack, and each rng step taking 23440*2+1 operations to check, multiply those together and you get well into the hundreds of millions of operations per second, so you see why that had trouble on a crappy VPS, especially when that VPS is also trying to run multiple headless instances of Minecraft).
 
-Anyway so we switched to a lookup table approach and rewrote it in Cuda to run on my desktop as a batch job every few minutes. It can do literally millions per second since cuda cores eat this kind of stuff for breakfast. Here's the idea: the lookup table's key is the lower 32 bits of the mansion seed, and the value is the X coordinate of the woodland region. This lookup table works with no collisions because each mansion seed has a unique lower 32 bits, **somehow**. I don't understand why that's true, it's fascinating. You'd think it wouldn't work. But I think the coefficients `341873128712` and `132897987541` may have been specially chosen to make this work? Like, if you have 2.2 billion marbles, and 4.3 billion buckets, and you independently put each marble in a random bucket, what are the odds that each marble gets its own bucket? Essentially zero. Nearing the end, each new marble has a more than 50% chance of hitting a bucket that's already filled. Yet, clearly, these are not independently random, so somehow it works. Unironically if you're reading this and understand how this works or why those two specific coefficients make this work, please let me know. Anyway, it works. The lookup table has 2^32 entries, and each entry is 2 bytes (since it's just a number between -23440 and +23440), so this needs about 9 gigabytes of VRAM on your GPU.
+Anyway so we switched to a lookup table approach and rewrote it in Cuda to run on my desktop as a batch job every few minutes. It can do literally millions per second since cuda cores eat this kind of thing for breakfast. Here's the idea: the lookup table's key is the lower 32 bits of the mansion seed, and the value is the X coordinate of the Woodland region. This lookup table works with no collisions because each mansion seed has a unique lower 32 bits, **somehow**. I don't understand why that's true, it's fascinating. You'd think it wouldn't work. But I think the coefficients `341873128712` and `132897987541` may have been specially chosen to make this work? Like, if you have 2.2 billion marbles, and 4.3 billion buckets, and you independently put each marble in a random bucket, what are the odds that each marble gets its own bucket? Essentially zero. Nearing the end, each new marble has a more than 50% chance of hitting a bucket that's already filled. Yet, clearly, these are not independently random, so somehow it works. Unironically if you're reading this and understand how this works or why those two specific coefficients make this work, please let me know. Anyway, it works. The lookup table has 2^32 entries, and each entry is 2 bytes (since it's just a number between -23440 and +23440), so this needs about 9 gigabytes of VRAM on your GPU.
 
 The woodland check function now looks like (again, this is the actual code but simplified, all helpers and constants inlined etc):
 
@@ -219,7 +219,7 @@ __global__ void writeToSeedTable(int16_t* mansionTable) {
 
 This works great in giant batches and can crack on the order of ten million seeds per second on a 3090. Turns out to not be too big of a deal when some of the threads in a warp terminate early, and we couldn't really make it any faster than this. (the reason is that we fundamentally can't know beforehand which seeds will take more/less steps).
 
-Well that's about it. Given the seed, that's how we get the woodland region in the world where the most recent chunk load happened. In other words, we just learned that the most recent time that someone walked around on 2b2t and loaded a new area of the world, was somewhere within *this* 1280 by 1280 block woodland region that we just identified. (that's precise enough that locating them takes just a few minutes of searching)
+Well that's about it. Given the seed, that's how we get the Woodland region in the world where the most recent chunk load happened. In other words, we just learned that the most recent time that someone walked around on 2b2t and loaded a new area of the world, was somewhere within *this* 1280 by 1280 block Woodland region that we just identified. (that's precise enough that locating them takes just a few minutes of searching)
 
 Now back to the fun part, lattices!
 
@@ -323,7 +323,7 @@ This gives: `(-10000.99799, 7761.998172, -41027.00033)`. Wow, that's so close to
 
 Let's round to the nearest integer! `(-10001, 7762, -41027)`. This represents a valid point in lattice space, since all three coefficients are now integers. Now, to find that point's real coordinates in lattice space, we take that times our basis vectors (i.e. `-10001` times `(12707...` plus `7762` times `(-23557...` plus `-41027` times `(-37564...`). We get `(123123123123123, 128660088296759, 93059919934059)`.
 
-That first coordinate is our original seed `123123123123123`! Success! Given the output of three consecutive `nextFloat` calls, we successfully recovered what the internal state of `java.util.Random` must have been. (in the real exploit, at this point we would then step this seed backwards until it matched a mansion seed, revealing what woodland region a player was just walking around in)
+That first coordinate is our original seed `123123123123123`! Success! Given the output of three consecutive `nextFloat` calls, we successfully recovered what the internal state of `java.util.Random` must have been. (in the real exploit, at this point we would then step this seed backwards until it matched a mansion seed, revealing what Woodland region a player was just walking around in)
 
 Aside: now, what if we used the original basis vectors of `(1, a, a^2)`, `(0, c, 0)`, and `(0, 0, c)` instead of the LLL reduced ones? (Code: `Inverse[Transpose[{{1, a, a^2}, {0, c, 0}, {0, 0, c}}]] . {123123131219968, 128660082262005, 93059917420870}`). We would get coefficients of `123123131219968`, `-11029534347.32617`, `-278108648828606394735.834469`. Well that's useless. The first component is already an integer, because our first basis vector starts with a `1` and the next two both start with a `0`. Rounding to the nearest integer would therefore do nothing to help us find the actual original seed. If we did so, we would get `Transpose[{{1, a, a^2}, {0, c, 0}, {0, 0, c}}] . {123123131219968, -11029534347, -278108648828606394736} + {0, b, a*b + b}` which is `123123131219968, 220470678913035, 46744522843834`. So, these are three valid consecutive seeds (the `nextSeed` of the first is the second, and `nextSeed` of the second is the third). So it didn't do anything really useful, it just ignored our second and third measurements entirely and make them match our crappy guess for the first measurement (`123123131219968`). That's why we need to use the good, short, and most importantly *nearly orthogonal* basis vectors from LLL. With the better basis vectors, all three component axes (our three measurements) are "treated more equally" so to speak, so it naturally tends towards a solution that balances all three components. This simple way focused on getting something that exactly matches first component while entirely ignoring the second two, but that's no good because each individual component is millions off, but, *when considered together*, there's one obvious nearby lattice point that the better basis vectors find simply by rounding.
 
@@ -336,10 +336,7 @@ public static long crack(int rngMeasurement1, int rngMeasurement2, int rngMeasur
     double basisCoeff0 = 9.555378710501827E-11 * cubeCenterX + -2.5481838861196593E-10 * cubeCenterY + 1.184083942007419E-10 * cubeCenterZ;
     double basisCoeff1 = -1.2602185961441137E-10 * cubeCenterX + 6.980727107475104E-11 * cubeCenterY + 1.5362999761237006E-10 * cubeCenterZ;
     double basisCoeff2 = -1.5485213111787743E-10 * cubeCenterX + -1.2997958265259513E-10 * cubeCenterY + -5.6285642813236336E-11 * cubeCenterZ;
-    long roundedCoeff0 = Math.round(basisCoeff0);
-    long roundedCoeff1 = Math.round(basisCoeff1);
-    long roundedCoeff2 = Math.round(basisCoeff2);
-    long seed = roundedCoeff0 * 1270789291L + roundedCoeff1 * -2355713969L + roundedCoeff2 * -3756485696L & 281474976710655L;
+    long seed = Math.round(basisCoeff0) * 1270789291L + Math.round(basisCoeff1) * -2355713969L + Math.round(basisCoeff2) * -3756485696L & 281474976710655L;
     long next = seed * 25214903917L + 11L & 281474976710655L;
     long nextNext = next * 25214903917L + 11L & 281474976710655L;
     return (seed >> 24 ^ rngMeasurement1 | next >> 24 ^ rngMeasurement2 | nextNext >> 24 ^ rngMeasurement3) != 0L ? -1L : seed;
@@ -362,3 +359,77 @@ Yeah so that's how you get the state of `java.util.Random` from three consecutiv
 
 ## Could you do this in redstone? (yes)
 Here's a fun thought: if cracking the state of Minecraft's RNG is plainly fairly doable in not too many lines of code, as seen above, could it be implemented **in-game**? Like, within Minecraft itself, using redstone circuits? The answer is yes, go watch [this video](https://www.youtube.com/watch?v=YlacogJeVkg) which is honestly more impressive than anything we've done here. The guys who made that, Matthew Bolan and co., were the ones who actually discovered RNG manipulation and lattice methods as applied to Minecraft (years and years before we did anything with it).
+
+## Complete worked example
+
+```java
+private static long WORLD_SEED = -4172144997902289642L; // change this for a server other than 2b2t
+
+public static void receivedPacket(Packet<?> packet) { // call this for incoming packets
+    if (packet instanceof SPacketSpawnObject) {
+        SPacketSpawnObject obj = (SPacketSpawnObject) packet;
+        if (obj.getType() == 2 && obj.getData() == 1 && obj.getSpeedY() == 1600) {
+            new Thread(() -> crackItemDropCoordinate(obj.getX(), obj.getY(), obj.getZ())).start();
+        }
+    }
+}
+
+private static void crackItemDropCoordinate(double dropX, double dropY, double dropZ) {
+    float spawnX = ((float) (dropX - (int) Math.floor(dropX) - 0.25d)) * 2;
+    float spawnY = ((float) (dropY - (int) Math.floor(dropY) - 0.25d)) * 2;
+    float spawnZ = ((float) (dropZ - (int) Math.floor(dropZ) - 0.25d)) * 2;
+    if (spawnX <= 0 || spawnX >= 1 || spawnY <= 0 || spawnY >= 1 || spawnZ <= 0 || spawnZ >= 1) {
+        System.out.println("Skipping this item because its coordinates are out of bounds. This probably means that the item only coincidentally looked like an item that was dropped from mining a block. Other ways to drop items (e.g. dropping from a player's inventory) can sometimes cause false positives like this.");
+        return;
+    }
+    int measurement1 = (int) (spawnX * (1 << 24));
+    int measurement2 = (int) (spawnY * (1 << 24));
+    int measurement3 = (int) (spawnZ * (1 << 24));
+    long cubeCenterX = ((long) measurement1 << 24) + 8388608L;
+    long cubeCenterY = ((long) measurement2 << 24) + 8388597L;
+    long cubeCenterZ = ((long) measurement3 << 24) - 277355554490L;
+    double basisCoeff0 = 9.555378710501827E-11 * cubeCenterX + -2.5481838861196593E-10 * cubeCenterY + 1.184083942007419E-10 * cubeCenterZ;
+    double basisCoeff1 = -1.2602185961441137E-10 * cubeCenterX + 6.980727107475104E-11 * cubeCenterY + 1.5362999761237006E-10 * cubeCenterZ;
+    double basisCoeff2 = -1.5485213111787743E-10 * cubeCenterX + -1.2997958265259513E-10 * cubeCenterY + -5.6285642813236336E-11 * cubeCenterZ;
+    long seed = Math.round(basisCoeff0) * 1270789291L + Math.round(basisCoeff1) * -2355713969L + Math.round(basisCoeff2) * -3756485696L & 281474976710655L;
+    long next = seed * 25214903917L + 11L & 281474976710655L;
+    long nextNext = next * 25214903917L + 11L & 281474976710655L;
+    if ((seed >> 24 ^ measurement1 | next >> 24 ^ measurement2 | nextNext >> 24 ^ measurement3) != 0L) {
+        System.out.println("Failed to crack the seed. This probably means that the item only coincidentally looked like an item that was dropped from mining a block. Other ways to drop items (e.g. dropping from a player's inventory) can sometimes cause false positives like this.");
+        return;
+    }
+    long origSeed = seed;
+    for (int i = 0; i < 5000; i++) {
+        for (int x = -23440; x <= 23440; x++) {
+            long z = (((seed ^ 25214903917L) - WORLD_SEED - 10387319 - x * 341873128712L) * 211541297333629L) << 16 >> 16;
+            if (z >= -23440 && z <= 23440) {
+                System.out.println("Item drop appeared at " + dropX + " " + dropY + " " + dropZ);
+                System.out.println("RNG measurements are therefore " + measurement1 + " " + measurement2 + " " + measurement3);
+                System.out.println("This indicates the java.util.Random internal seed must have been " + origSeed);
+                System.out.println("Found a woodland match at woodland region " + x + " " + z + " which would have set the seed to " + seed);
+                System.out.println("Located someone between " + (x * 1280 - 128) + "," + (z * 1280 - 128) + " and " + (x * 1280 + 1151) + "," + (z * 1280 + 1151));
+                return;
+            }
+        }
+        seed = (seed * 246154705703781L + 107048004364969L) & 281474976710655L;
+    }
+    System.out.println("Failed to crack. This probably means that your world seed is incorrect.");
+}
+```
+
+For example, I pasted this into `jshell`, then I ran an actual coordinate that we measured on 2b2t. (although, I've replaced the actual block part of the coordinate with zero to not reveal where our bot was):
+
+```
+jshell> crackItemDropCoordinate(0.41882818937301636, 0.6833633482456207, 0.46088552474975586)
+Item drop appeared at 0.41882818937301636 0.6833633482456207 0.46088552474975586
+RNG measurements are therefore 5664934 14541261 7076144
+This indicates the java.util.Random internal seed must have been 95041827771683
+Found a woodland match at woodland region -12008 0 which would have set the seed to 275473502409504
+Located someone between -15370368,-128 and -15369089,1151
+
+jshell> 
+```
+
+And would you look at that, hidden deep within the digits of the coordinates of that item drop, the server was secretly revealing to us that there's someone on the -x highway at 15.4 million out.
+
+By the way, if any of you have ReplayMod recordings or similar packet logs from 2b2t (or any other server) on 1.12.2 (or earlier), and someone was breaking blocks in the recording, you can run this code now to figure out what chunks were being loaded back then. Maybe those bases are still active through present day? And even if not, it's cool to visit ruins. Try it out!
