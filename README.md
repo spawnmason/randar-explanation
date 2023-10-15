@@ -273,7 +273,7 @@ Our three basis vectors are `(1, a, a^2)`, `(0, c, 0)`, and `(0, 0, c)`. (peekin
 
 Any point representing `(seed, nextSeed(seed), nextSeed(nextSeed(seed)))` is represented by some combination of adding and subtracting `(1, a, a^2)`, `(0, c, 0)`, and `(0, 0, c)`. That first vector will be added `seed` times, the second one will be subtracted however many times the modulo wraps around back to zero on the first `nextSeed` call, and the third one is the same but for the second `nextSeed` call.
 
-(note that this technically isn't a lattice yet because it doeen't technically include `(0, 0, 0)`, it starts at `(0, nextSeed(0), nextSeed(nextSeed(0)))`, in other words `(0, b, a*b+b)`. That has to be subtracted from all our points first. I've been glossing over this because it would be confusing to mention in every sentence, and because it's really easy to account for; we'll just shift our measurements later on to subtract that out. Trust me, it's fine.)
+(note that this technically isn't a lattice yet because it doesn't technically include `(0, 0, 0)`, it starts at `(0, nextSeed(0), nextSeed(nextSeed(0)))`, in other words `(0, b, a*b+b)`. That has to be subtracted from all our points first. I've been glossing over this because it would be confusing to mention in every sentence, and because it's really easy to account for; we'll just shift our measurements later on to subtract that out. Trust me, it's fine.)
 
 We have plotted one point in 3d for every possible internal state of `java.util.Random`, and recall that our measurements form a cube in that space. We need to find which of the points we plotted is inside that cube.
 
