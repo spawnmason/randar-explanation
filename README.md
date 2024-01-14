@@ -17,6 +17,13 @@
 
 Randar was discovered by n0pdr0pz, and this writeup was written by leijurv.
 
+Diagram of the mistake:
+![randar diagram 1](media/randar_diagram_1.svg)
+
+Diagram of the exploit:
+![randar diagram 2](media/randar_diagram_2.svg)
+
+
 ## More detail
 
 Minecraft's map is procedurally generated and essentially deterministic based on the initial seed of the world. As players explore the map, new areas are generated on-demand as players get near. Since all the generation is meant to be repeatable (deterministic), it's perfectly reasonable for them to have used `java.util.Random` in a lot of places. They **want** it to be predictable. This is why `java.util.Random` is used, since it's a PRNG (not really a RNG). The P technically means "pseudo" but think of it as "predictable". Predictable RNG. It generates numbers that seem random, but they're actually repeatable given the same starting seed.
