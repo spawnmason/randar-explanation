@@ -15,7 +15,7 @@
 5. We step the RNG state backwards in time until we find one that could have been caused by a Woodland Mansion check. Again broadly speaking, the internal state of `java.util.Random` can be stepped backwards just as easily as forwards, and by stepping backwards we can find it in just a few thousand steps (even on busy servers like 2b2t with many players and therefore heavy usage of RNG), which identifies the most recent time that the RNG's internal state was reset, and therefore the location of the most recent chunk that was loaded on the server.
 6. A heatmap is built up over time from that database, and we pay some of the hotspots a visit in game and maybe steal their stuff or generally just cause chaos. To find a specific person, we can associate login times to hits, as logging in causes a lot of chunks to load immediately.
 
-Randar was discovered by n0pf0x and this writeup was written by leijurv. Exploiters were 0x22, babbaj, lamp, leijurv, negative_entropy, rebane2001.
+Randar was discovered by [n0pf0x](https://github.com/pcm1k) and this writeup was written by leijurv. Exploiters were [0x22](https://github.com/0-x-2-2), [Babbaj](https://github.com/babbaj), [TheLampGod](https://github.com/thelampgod), [leijurv](https://github.com/leijurv), [Negative_Entropy](https://github.com/Entropy5) and [rebane2001](https://github.com/rebane2001).
 
 Diagram of the mistake:
 ![randar diagram 1](media/randar_diagram_1.svg)
