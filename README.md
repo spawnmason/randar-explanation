@@ -1,8 +1,8 @@
 # Randar Explanation and Information
 
-What if I told you, that every time a block is broken in Minecraft versions Beta 1.8 through 1.12.2, the precise **location** of the dropped item can reveal **someone else's location**?
+What if I told you that every time a block is broken in Minecraft versions Beta 1.8 through 1.12.2, the precise coordinates of the dropped item can **reveal another player's location**?
 
-"Randar" is an exploit for Minecraft, which uses [LLL lattice reduction](https://en.wikipedia.org/wiki/Lenstra%E2%80%93Lenstra%E2%80%93Lov%C3%A1sz_lattice_basis_reduction_algorithm) to determine (i.e. crack) the internal state of one of the Minecraft server's `java.util.Random` instances, then works backwards from that to abuse a flaw in the way this RNG is used to remotely locate other players.
+"Randar" is an exploit for Minecraft, which uses [LLL lattice reduction](https://en.wikipedia.org/wiki/Lenstra%E2%80%93Lenstra%E2%80%93Lov%C3%A1sz_lattice_basis_reduction_algorithm) to crack the internal state of the Minecraft server's `java.util.Random`, then works backwards from that, through a flaw in how the RNG is seeded, to determine what location in the world was most recently loaded by another player.
 
 **The goal** is to determine the in-game locations (i.e. coordinates) of the other players in the world, no matter how far away they are. We're playing on [2b2t](https://en.wikipedia.org/wiki/2b2t), which is the oldest and most famous "anarchy" Minecraft server (which means no rules, i.e. players aren't banned for any reason). Doing stuff like this is kind of "the point" on this server. On this server, the only thing keeping your stuff safe is that the map is huge (3.6 quadrillion square tiles) and no one else knows where you are. So it's a huge deal (a game-breaking deal) to have a coordinate exploit. (speaking of, before Randar we also had another coord exploit on 2b2t, Nocom, from 2018 to 2021; see that writeup [here](https://github.com/nerdsinspace/nocom-explanation/blob/main/README.md), [HackerNews thread](https://news.ycombinator.com/item?id=29615428), [YT](https://www.youtube.com/watch?v=elqAh3GWRpA))
 
