@@ -15,7 +15,7 @@
 5. We step the RNG state backwards in time until we find one that could have been caused by a Woodland Mansion check. Again broadly speaking, the internal state of `java.util.Random` can be stepped backwards just as easily as forwards, and by stepping backwards we can find it in just a few thousand steps (even on busy servers like 2b2t with many players and therefore heavy usage of RNG), which identifies the most recent time that the RNG's internal state was reset, and therefore the location of the most recent chunk that was loaded on the server.
 6. A heatmap is built up over time from that database, and we pay some of the hotspots a visit in game and maybe steal their stuff or generally just cause chaos. To find a specific person, we can associate login times to hits, as logging in causes a lot of chunks to load immediately.
 
-Randar was discovered by n0pdr0pz, and this writeup was written by leijurv.
+Short history: In 2018, Earthcomputer and friends discovered that chunk loads affect the game's RNG in an observable way, see [this](https://youtu.be/Bl2lan-44H8?t=212) explanation. However, they did not realize, or just never revealed publicly, that you can also do this backwards, determining the most recent loaded chunk from observing the RNG. That discovery, Randar, was made by n0pf0x (aka pcm1k, aka n0pdr0pz) in 2022. This writeup was written by leijurv.
 
 Diagram of the mistake:
 ![randar diagram 1](media/randar_diagram_1.svg)
@@ -367,7 +367,7 @@ The idea of that code is:
 Yeah so that's how you get the state of `java.util.Random` from three consecutive calls to `nextFloat()`. And that ^ optimized Java code can do it in about ten nanoseconds on my laptop.
 
 ## Could you do this in redstone? (yes)
-Here's a fun thought: if cracking the state of Minecraft's RNG is plainly fairly doable in not too many lines of code, as seen above, could it be implemented **in-game**? Like, within Minecraft itself, using redstone circuits? The answer is yes, go watch [this video](https://www.youtube.com/watch?v=YlacogJeVkg) which is honestly more impressive than anything we've done here. The guys who made that, Matthew Bolan and co., were the ones who actually discovered RNG manipulation and lattice methods as applied to Minecraft (years and years before we did anything with it).
+Here's a fun thought: if cracking the state of Minecraft's RNG is plainly fairly doable in not too many lines of code, as seen above, could it be implemented **in-game**? Like, within Minecraft itself, using redstone circuits? The answer is yes, go watch [this video](https://www.youtube.com/watch?v=YlacogJeVkg) which is honestly more impressive than anything we've done here. The guys who made that, Matthew Bolan and Earthcomputer and co., were the ones who actually discovered RNG manipulation and lattice methods as applied to Minecraft (years and years before we did anything with it). Earthcomputer once teased that he knew of a coordinate exploit for 2b2t, I have to guess this is it.
 
 ## Complete worked example
 
