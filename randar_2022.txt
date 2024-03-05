@@ -1,0 +1,31 @@
+Randar/ResetFinder - block game military grade radar 2
+
+written by pcm1k - 2022-10-21
+
+In Minecraft versions < 1.13 there exists a glitch known as "world RNG reset".
+
+Whenever a chunk loads, for each structure, the game tries to figure out if
+that structure should be there by generating a certain Java Random seed based
+on the world seed, structure type, and the approximate chunk location, and
+using that to calculate if the structure should be considered to be in that
+location.
+
+The problem is that instead of using a separate Random object for this purpose,
+it actually uses the global world Random object that is used for many other
+gameplay actions. The world RNG seed ends up being the seed used for checking
+the last structure, which in 1.12, happens to be woodland mansions (overworld)
+or end cities (end). The nether is not affected by this glitch AFAIK.
+
+The seed it generates is the same every time, this means it is possible to
+force the world RNG state to be a certain value just by loading a specific
+chunk.
+
+This is already publicly documented, however what is not documented as of
+writing (AFAIK) is that you can also do this in the "reverse".
+
+By performing a certain action, we can calculate the current world RNG state.
+Then by advancing the RNG state backwards, and undoing the seed generation
+algorithm, we can get that approximate chunk location. We then look for
+"reasonable-looking" locations (locations outside of the world are clearly
+invalid). This allows us to find the approximate location of the last loaded
+chunk, and thus find player locations.
