@@ -439,6 +439,4 @@ Located someone between -15370368,-128 and -15369089,1151
 jshell> 
 ```
 
-And would you look at that, hidden deep within the digits of the coordinates of that item drop, the server was secretly revealing to us that there's someone on the -x highway at 15.4 million out.
-
-By the way, if any of you have ReplayMod recordings or similar packet logs from 2b2t (or any other server) on 1.12.2, and someone was breaking blocks in the recording, you can run this code now to figure out what chunks were being loaded back then. Maybe those bases are still active through present day? And even if not, it's cool to visit ruins. Try it out! (For earlier than 1.11, you'll need other code because the exploitable structure is something else (not Woodland Mansion), starting when the Village was added as the first structure in Beta 1.8).
+And would you look at that, hidden deep within the digits of the coordinates of that item drop, the server was secretly revealing to us that there's someone on the -x highway at 15.4 million out. This secret information has been present in every item drop, on every server, on every version of the game until 1.13. (For earlier than 1.11, you'll need other code because the exploitable structure is something else (not Woodland Mansion), starting when the Village was added as the first structure in Beta 1.8).
