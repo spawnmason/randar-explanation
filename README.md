@@ -372,7 +372,7 @@ The idea of that code is:
 Yeah so that's how you get the state of `java.util.Random` from three consecutive calls to `nextFloat()`. And that ^ optimized Java code can do it in about ten nanoseconds on my laptop.
 
 ## Could you do this in redstone? (yes)
-Here's a fun thought: if cracking the state of Minecraft's RNG is plainly fairly doable in not too many lines of code, as seen above, could it be implemented **in-game**? Like, within Minecraft itself, using redstone circuits? The answer is yes, go watch [this video](https://www.youtube.com/watch?v=YlacogJeVkg) which is honestly more impressive than anything we've done here. The guys who made that, Matthew Bolan and Earthcomputer and co., were the ones who actually discovered RNG manipulation and lattice methods as applied to Minecraft (years and years before we did anything with it). Earthcomputer once teased that he knew of a coordinate exploit for 2b2t, I have to guess this is it.
+Here's a fun thought: if cracking the state of Minecraft's RNG is plainly fairly doable in not too many lines of code, as seen above, could it be implemented **in-game**? Like, within Minecraft itself, using redstone circuits? The answer is yes, go watch [this video](https://www.youtube.com/watch?v=YlacogJeVkg) which is honestly more impressive than anything we've done here. The guys who made that, Matthew Bolan and Earthcomputer and co., were the ones who actually discovered RNG manipulation and lattice methods as applied to Minecraft (years and years before we did anything with it).
 
 ## Complete worked example
 
