@@ -1,6 +1,6 @@
 # Randar Explanation and Information
 
-What if I told you that every time a block is broken in Minecraft versions Beta 1.8 through 1.12.2, the precise coordinates of the dropped item can **reveal another player's location**?
+Every time a block is broken in Minecraft versions Beta 1.8 through 1.12.2, the precise coordinates of the dropped item can **reveal another player's location**.
 
 "Randar" is an exploit for Minecraft which uses [LLL lattice reduction](https://en.wikipedia.org/wiki/Lenstra%E2%80%93Lenstra%E2%80%93Lov%C3%A1sz_lattice_basis_reduction_algorithm) to crack the internal state of an incorrectly reused `java.util.Random` in the Minecraft server, then works backwards from that to locate other players currently loaded into the world.
 
