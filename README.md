@@ -10,14 +10,14 @@ Every time a block is broken in Minecraft versions Beta 1.8 through 1.12.2, the 
 
 **The exploit** summarized:
 
-1. Some player on the server (our victim) walks around, causing a chunk (a 16x16 blocks section of the map) to be loaded into memory server-side. This happens normally all the time.
+1. Some player on the server (our victim) walks around, causing a chunk (a 16x16 blocks section of the map, stretching to world height) to be loaded into memory server-side. This happens normally all the time.
 2. The server checks if certain structures are being generated in that chunk, and the last one to be checked is the [Woodland Mansion](https://minecraft.fandom.com/wiki/Woodland_Mansion). Due to sloppy code in Minecraft, the global `World.rand` has its seed reset to a function of the chunk coordinates, in order to check where a nearby Woodland Mansion should be (and whether it's this chunk in particular).
 3. One of our bot players, also on 2b2t but at an unrelated location, mines a block very soon after. The dropped item appears at a "random" coordinate within the mined block, determined by three consecutive `World.rand.nextFloat()` calls to pick the X Y and Z coordinates between 0 and 1. The bot records the timestamp and the precise X Y Z values.
 4. By using lattice reduction, we can determine the exact internal state of `World.rand` that caused those three floats. Broadly speaking (more detail will come later), observing one output of the RNG could imply any one of about 16 million possible internal states of the RNG. However, we have sampled the output of the RNG not just once but three times in a row (the X, Y, and Z coordinates of the dropped item), and we know how the internal state is updated between each call (a simple multiply, add, then mod); therefore we can use lattice methods to essentially instantly narrow it down to the only possibility.
 5. We step the RNG state backwards in time until we find one that could have been caused by a Woodland Mansion check. Again broadly speaking, the internal state of `java.util.Random` can be stepped backwards just as easily as forwards, and by stepping backwards we can find it in just a few thousand steps (even on busy servers like 2b2t with many players and therefore heavy usage of RNG), which identifies the most recent time that the RNG's internal state was reset, and therefore the location of the most recent chunk that was loaded on the server.
 6. A heatmap is built up over time from that database, and we pay some of the hotspots a visit in game and maybe steal their stuff or generally just cause chaos. To find a specific person, we can associate login times to hits, as logging in causes a lot of chunks to load immediately.
 
-Randar was discovered by [n0pf0x](https://github.com/pcm1k) and this writeup was written by leijurv. Exploiters were [0x22](https://github.com/0-x-2-2), [Babbaj](https://github.com/babbaj), [TheLampGod](https://github.com/thelampgod), [leijurv](https://github.com/leijurv), [Negative_Entropy](https://github.com/Entropy5) and [rebane2001](https://github.com/rebane2001).
+Randar was discovered by [n0pf0x](https://github.com/pcm1k) (pcm1k). This writeup was written by leijurv, with some additional commentary at the end written by n0pf0x. Exploiters were [0x22](https://github.com/0-x-2-2), [Babbaj](https://github.com/babbaj), [TheLampGod](https://github.com/thelampgod), [leijurv](https://github.com/leijurv), [Negative_Entropy](https://github.com/Entropy5) and [rebane2001](https://github.com/rebane2001).
 
 Diagram of the mistake:
 ![randar diagram 1](media/randar_diagram_1.svg)
@@ -27,7 +27,7 @@ Diagram of the exploit:
 
 ## Brief history
 
-In 2018, Earthcomputer and friends discovered that chunk loads affect the game's RNG in an observable way, see [this](https://youtu.be/Bl2lan-44H8?t=362) explanation. However, they did not realize, or just never revealed publicly, that you can also do this backwards, determining the most recent loaded chunk from observing the RNG. That discovery, Randar, was made by n0pf0x (aka pcm1k, aka n0pdr0pz) on October 7, 2022. He posted a short, [encrypted](media/randar_n0p_2022_decrypt.sh) description of the exploit on [Pastebin](https://pastebin.com/afCrvAzJ) about two weeks after, to [prove](https://en.wikipedia.org/wiki/Trusted_timestamping) that he discovered it then. He used the exploit mostly on [9b9t](https://9b9t.com/), and only a relatively small amount on 2b2t and other servers. On 2b2t, n0p located and explored various locations, eventually coming to a [Gringotts](https://www.youtube.com/watch?v=TMBHP9FDqHI) stash location. He was spotted by rebane2001, and initially silent about how he found the location. However, about a month later, he began a conversation with the SpawnMasons about it. n0p revealed he had used a powerful coordinate exploit and decided to share [an explanation](media/randar_n0p_2022.txt) with us in April 2023, because the masons have past experience taking advantage of 2b2t exploits at larger scale, so it would be fun to see that happen again, and n0p was getting slightly bored with it anyway. We accepted and began recording item drop coordinates on several accounts that were already mining stone/cobblestone 24/7 for an unrelated project (so, there was no change in behavior). We reused the headless Minecraft system from nocom and added a Postgres database to record the measurements. As discussed later in this readme, we went through several iterations of software to crack the RNG measurements, eventually settling on an async Cuda batch job. As cracked measurements were added to the database, we also updated an analytics table with heatmap information that counted hits at each coordinate at intervals of all time, daily, and hourly. This allowed a simple Plotly Dash UI to select heatmap data from specific time ranges and granularities for display in a browser, and it let us remove all the Elytra stashhunting chunk load spam by only considering coordinates that were loaded in more than a few distinct hours. We added a simple shared annotation system to keep track of what we found at each hotspot on the map. Again reusing from Nocom, we have Baritone bots that automate the entire process of stealing item stashes and sorting the results, completely AFK. Many masons helped with this part, without knowing the exploit, using accounts such as `munmap` and `1248_test_user`. All Gringotts stashes put together eventually grew to 1.3 billion items, of which about half is attributable to Nocom and half to Randar.
+Minecraft relies on random numbers throughout the game. Most of them we expect to be actually random, such as randomness used for mob spawning and weather, but some of them we expect to be predictable, for example we expect the same world seed at the same location to generate the same terrain. In 2011, when Notch first added structures to the game during Beta 1.8, he accidentally reused an RNG that's **supposed** to be unpredictable in order to place Villages in the world. Ever since then, until 1.13, this sloppy code has caused world generation to influence nearly all other **supposedly** random events in the game. It took until around May 2018, for Earthcomputer and friends to discover this mistake, realizing that chunk loads affect the game's RNG in an observable way, see [this](https://youtu.be/Bl2lan-44H8?t=362) explanation. However, they did not realize, or just never revealed publicly, that you can also do this backwards, determining the most recent loaded chunk from observing the RNG. That discovery, Randar, was made by n0pf0x (aka pcm1k) on October 7, 2022. He posted a short, [encrypted](media/randar_n0p_2022_decrypt.sh) description of the exploit on [Pastebin](https://pastebin.com/afCrvAzJ) about two weeks after, to [prove](https://en.wikipedia.org/wiki/Trusted_timestamping) that he discovered it then. He used the exploit mostly on [9b9t](https://9b9t.com/), and only a relatively small amount on 2b2t and other servers. On 2b2t, n0p located and explored various locations, eventually coming to a [Gringotts](https://www.youtube.com/watch?v=TMBHP9FDqHI) stash location. He was spotted by rebane2001, and initially silent about how he found the location. However, about a month later, he began a conversation with the SpawnMasons about it. n0p revealed he had used a powerful coordinate exploit and decided to share [an explanation](media/randar_n0p_2022.txt) with us in April 2023, because the masons have past experience taking advantage of 2b2t exploits at larger scale, so it would be fun to see that happen again, and n0p was getting slightly bored with it anyway. We accepted and began recording item drop coordinates on several accounts that were already mining stone/cobblestone 24/7 for an unrelated project (so, there was no change in behavior). We reused the headless Minecraft system from nocom and added a Postgres database to record the measurements. As discussed later in this readme, we went through several iterations of software to crack the RNG measurements, eventually settling on an async Cuda batch job. As cracked measurements were added to the database, we also updated an analytics table with heatmap information that counted hits at each coordinate at intervals of all time, daily, and hourly. This allowed a simple Plotly Dash UI to select heatmap data from specific time ranges and granularities for display in a browser, and it let us remove all the Elytra stashhunting chunk load spam by only considering coordinates that were loaded in more than a few distinct hours. We added a simple shared annotation system to keep track of what we found at each hotspot on the map. Again reusing from Nocom, we have Baritone bots that automate the entire process of stealing item stashes and sorting the results, completely AFK. Many masons helped with this part, without knowing the exploit, using accounts such as `munmap` and `1248_test_user`. All Gringotts stashes put together eventually grew to 1.3 billion items, of which about half is attributable to Nocom and half to Randar.
 
 ## More detail
 
@@ -463,4 +463,192 @@ Located someone between -15370368,-128 and -15369089,1151
 jshell> 
 ```
 
-And would you look at that, hidden deep within the digits of the coordinates of that item drop, the server was secretly revealing to us that there's someone on the -x highway at 15.4 million out. This secret information has been present in every item drop, on every server, on every version of the game until 1.13. (For earlier than 1.11, you'll need other code because the exploitable structure is something else (not Woodland Mansion), starting when the Village was added as the first structure in Beta 1.8).
+And would you look at that, hidden deep within the digits of the coordinates of that item drop, the server was secretly revealing to us that there's someone on the -x highway at 15.4 million out. This secret information has been present in every item drop, on every server, on every version of the game until 1.13. For earlier than 1.11, you'll need other code because the exploitable structure is something else (not Woodland Mansion), starting when the Village was added as the first structure in Beta 1.8. Another thing to note is that before 1.9, item positions were sent to the client as fixed-point numbers (with only 5 bits dedicated to the fractional part), rather than doubles. This means that it is impractical to crack the RNG state with only one item position, and you'll likely need a different strategy to measure the state of `World.rand`.
+
+## Appendix (written by n0pf0x)
+
+This will be an additional section where I go over some extra stuff and explain how I did some things differently, as other than the basic ideas, we mostly independently developed things.
+
+First thing I would like to mention, is the system for locating the coordinates from a seed. The Mason's used a large lookup table and GPU processing, I instead relied on a cache for speed.
+
+Here is that code:
+```java
+public class RandarCoordFinder
+{
+	public static final long X_MULT = 341873128712L;
+	public static final long Z_MULT = 132897987541L;
+
+	public static final long Z_MULT_INV = 211541297333629L;
+
+	public static final int MANSION_SALT = 10387319;
+	public static final int MANSION_SPACING = 80;
+
+	public static final int CITY_SALT = 10387313;
+	public static final int CITY_SPACING = 20;
+
+	// the last seed we measured
+	public long lastSeed = -1;
+	// a mapping of seed -> x,z that is updated everytime we get a hit
+	public final HashMap hitCache = new HashMap<>();
+
+	// set this according to the server's seed
+	public long worldSeed;
+	// also set this, of course
+	public boolean worldSeedInit = false;
+
+	// change these if you need to use different structures
+	public int salt = MANSION_SALT;
+	public int spacing = MANSION_SPACING;
+
+	// a simple class that extends java.util.Random and provides some extra methods and constants we need
+	public static class RandarRandom extends Random
+	{
+		public static final long MULT = 0x5DEECE66DL;
+		public static final long ADDEND = 0xBL;
+		public static final long MASK = (1L << 48) - 1;
+
+		public static final long MULT_INV = 0xDFE05BCB1365L;
+
+		public long seed;
+
+		public RandarRandom(long seed)
+		{
+			this.seed = seed;
+		}
+
+		@Override
+		public void setSeed(long seed)
+		{
+			this.seed = seed;
+		}
+
+		@Override
+		public int next(int bits)
+		{
+			seed = (seed * MULT + ADDEND) & MASK;
+			return (int)(seed >> 48 - bits);
+		}
+
+		public int prevInt()
+		{
+			seed = ((seed - ADDEND) * MULT_INV) & MASK;
+			return (int)(seed >> 16);
+		}
+	}
+
+	public enum FindType
+	{
+		HIT,
+		SKIP,
+		FAIL;
+	}
+
+	public record FindResult(FindType type, int xCoord, int zCoord, int steps)
+	{
+	}
+
+	public FindResult findCoordsSeed(long seed, int maxSteps)
+	{
+		if (!worldSeedInit)
+		{
+			throw new IllegalStateException("worldSeed not initialized");
+		}
+
+		seed &= RandarRandom.MASK;
+
+		// remember and update lastSeed
+		long last = lastSeed;
+		lastSeed = seed;
+
+		RandarRandom random = new RandarRandom(seed);
+
+		// first pass - this is meant to be quick
+		for (int i = 0; i < maxSteps + 100000; i++)
+		{
+			if (random.seed == last && i > 0)
+			{
+				// we encountered the last measured seed while stepping back, skip
+				return new FindResult(FindType.SKIP, 0, 0, i);
+			}
+			else
+			{
+				Long hashValue = hitCache.get(random.seed);
+				if (hashValue != null)
+				{
+					// we found a hit in our cache
+					int xCoord = (int)((hashValue >> 32) & 0xFFFFFFFF);
+					int zCoord = (int)(hashValue & 0xFFFFFFFF);
+					cacheNearby(xCoord, zCoord, 8);
+					return new FindResult(FindType.HIT, xCoord, zCoord, i);
+				}
+			}
+
+			random.prevInt();
+		}
+
+		random.seed = seed;
+
+		// second pass - this is slow and should only happen if the first pass didn't work
+		for (int i = 0; i < maxSteps; i++)
+		{
+			// undo worldSeed and salt
+			long seedValue = (random.seed ^ RandarRandom.MULT) - worldSeed -
+				(long)salt;
+
+			Coords coords = findCoords(seedValue, 1875000 / spacing + 8);
+			if (coords != null)
+			{
+				// we found a hit
+				cacheNearby(coords.x, coords.z, 8);
+				return new FindResult(FindType.HIT, coords.x, coords.z, i);
+			}
+			random.prevInt();
+		}
+
+		// we could not find anything
+		return new FindResult(FindType.FAIL, 0, 0, -1);
+	}
+
+	public static long getRandomSeed(int x, int z, int salt, long seed)
+	{
+		return ((long)x * X_MULT + (long)z * Z_MULT) + seed + (long)salt;
+	}
+
+	private void cacheNearby(int x, int z, int radius)
+	{
+		for (int xOff = -radius; xOff <= radius; xOff++)
+		{
+			for (int zOff = -radius; zOff <= radius; zOff++)
+			{
+				int cacheX = x + xOff;
+				int cacheZ = z + zOff;
+				long cacheSeed = (getRandomSeed(cacheX, cacheZ, salt,
+					worldSeed) ^ RandarRandom.MULT) & RandarRandom.MASK;
+				hitCache.put(cacheSeed, (long)cacheX << 32 | cacheZ &
+						0xFFFFFFFFL);
+			}
+		}
+	}
+
+	public record Coords(int x, int z)
+	{
+	}
+
+	public static Coords findCoords(long value, int distance)
+	{
+		value &= RandarRandom.MASK;
+
+		for (int x = -distance; x <= distance; x++)
+		{
+			long testValue = (value - X_MULT * x) & RandarRandom.MASK;
+			long z = (testValue * Z_MULT_INV) << 16 >> 16;
+			if (Math.abs(z) <= distance)
+			{
+				return new Coords(x, (int)z);
+			}
+		}
+
+		return null;
+	}
+}
+```
