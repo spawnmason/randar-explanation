@@ -489,16 +489,19 @@ public class RandarCoordFinder
 	// the last seed we measured
 	public long lastSeed = -1;
 	// a mapping of seed -> x,z that is updated everytime we get a hit
-	public final HashMap hitCache = new HashMap<>();
+	public final HashMap<Long, Long> hitCache = new HashMap<>();
 
 	// set this according to the server's seed
 	public long worldSeed;
-	// also set this, of course
-	public boolean worldSeedInit = false;
 
 	// change these if you need to use different structures
 	public int salt = MANSION_SALT;
 	public int spacing = MANSION_SPACING;
+
+	public RandarCoordFinder(long worldSeed)
+	{
+		this.worldSeed = worldSeed;
+	}
 
 	// a simple class that extends java.util.Random and provides some extra methods and constants we need
 	public static class RandarRandom extends Random
@@ -549,11 +552,6 @@ public class RandarCoordFinder
 
 	public FindResult findCoordsSeed(long seed, int maxSteps)
 	{
-		if (!worldSeedInit)
-		{
-			throw new IllegalStateException("worldSeed not initialized");
-		}
-
 		seed &= RandarRandom.MASK;
 
 		// remember and update lastSeed
