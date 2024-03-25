@@ -467,9 +467,9 @@ And would you look at that, hidden deep within the digits of the coordinates of 
 
 ## Appendix (written by n0pf0x)
 
-This will be an additional section where I go over some extra stuff and explain how I did some things differently, as other than the basic ideas, we mostly independently developed things.
+This will be an additional section where I go over some extra stuff that would make more sense to explain from my point-of-view, as other than the basic ideas, we mostly independently developed things.
 
-First thing I would like to mention, is the system for locating the coordinates from a seed. The Mason's used a large lookup table and GPU processing, I instead relied on a cache for speed.
+First thing I would like to mention, is the system for locating the coordinates from a seed. The Mason's used a large lookup table and GPU processing, I instead relied on a cache for speed. Whenever a hit occurs, its coordinates, and all the coordinates within a radius are put into a HashMap. Seeds are processed in two passes. The first pass steps the RNG back, and checks if the seed is either present in the cache, or it was the same seed processed last time, which is considered differently. The second pass only happens if the first pass fails, is much slower, and uses the relatively expensive algorithm described previously. A pleasant side effect of this system, is that the first pass has the potential to "skip over" an otherwise "valid", but less likely to be correct location, which helps with false positives.
 
 Here is that code:
 ```java
@@ -486,7 +486,7 @@ public class RandarCoordFinder
     public static final int CITY_SALT = 10387313;
     public static final int CITY_SPACING = 20;
 
-    // the last seed we measured
+    // the last seed we processed
     public long lastSeed = -1;
     // a mapping of seed -> x,z that is updated everytime we get a hit
     public final HashMap<Long, Long> hitCache = new HashMap<>();
@@ -546,7 +546,7 @@ public class RandarCoordFinder
         FAIL;
     }
 
-    public record FindResult(FindType type, int xCoord, int zCoord, int steps)
+    public static record FindResult(FindType type, int xCoord, int zCoord, int steps)
     {
     }
 
@@ -565,7 +565,7 @@ public class RandarCoordFinder
         {
             if (random.seed == last && i > 0)
             {
-                // we encountered the last measured seed while stepping back, skip
+                // we encountered the last processed seed while stepping back, skip
                 return new FindResult(FindType.SKIP, 0, 0, i);
             }
             else
@@ -586,7 +586,7 @@ public class RandarCoordFinder
 
         random.seed = seed;
 
-        // second pass - this is slow and should only happen if the first pass didn't work
+        // second pass - this is slow and should only happen if the first pass fails
         for (int i = 0; i < maxSteps; i++)
         {
             // undo worldSeed and salt
@@ -628,7 +628,7 @@ public class RandarCoordFinder
         }
     }
 
-    public record Coords(int x, int z)
+    public static record Coords(int x, int z)
     {
     }
 
