@@ -650,3 +650,17 @@ public class RandarCoordFinder
     }
 }
 ```
+
+Another thing I would like to mention, is how I used this in The End. As mentioned previously, chunks in The End only affect the RNG once ever when they are first generated. This makes things much trickier, as unlike in the Overworld, a player cannot be found by simply loading a chunk at their base.
+
+Instead, there are two other main scenarios which we must rely on:
+1. Someone who is already at their base, wanders around, encounters ungenerated chunks, and causes them to generate.
+2. Someone travels to their base, whom will likely encounter and generate a "trail" of new chunks along the way.
+
+The first scenario essentially means that we **can** still use the naive method of simply counting how many distinct times a region was hit, however we will be heavily limited since hits may be very infrequent, and can be confused by someone simply flying by an area in a few distinct enough times. The second scenario requires us to identify and follow these trails.
+
+So how exactly do we follow trails? In theory you could create a system to automatically identify and follow trails, however I never implemented this and just manually followed trails visually. When following trails, there are a few ideas that can help. For example, multiple trails leading to the same place likely means there is a base. Knowing that a certain hit or trail was caused by a specific player can also help, more on that later.
+
+So how can we tell which player caused a certain hit? In the Overworld, we can simply look for "distinct" hits that happen right after a player joins. However, that is unlikely to work here, so we must do something else. There's actually a neat system for this. It's based on the assumption that not too many players are actually online in The End at once, and the idea that we can tell who these players are. The idea is that the number of RNG calls per tick is, in part, correlated to the number of currently loaded chunks, thus the number of players in that dimension. By watching for a sudden increase or decrease in the number of these calls right after a player joins or leaves respectively, we can identify players that are in The End.
+
+We maintain two sets. The first keeps track of who we think is in The End "right now". This can miss players, so it is considered to be more prone to false negatives. The second keeps track of who we think **was** in The End "overall", backwards and forwards a certain amount of time. This gets combined with the players that are currently online, and is considered to be more prone to false positives. By looking at these sets when a hit occurs, and doing some manual inference, we can get a rough idea of who may have caused a certain hit.
