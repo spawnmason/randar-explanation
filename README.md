@@ -546,7 +546,7 @@ public class RandarCoordFinder
         FAIL;
     }
 
-    public static record FindResult(FindType type, int xCoord, int zCoord, int steps)
+    public record FindResult(FindType type, int xCoord, int zCoord, int steps)
     {
     }
 
@@ -628,7 +628,7 @@ public class RandarCoordFinder
         }
     }
 
-    public static record Coords(int x, int z)
+    public record Coords(int x, int z)
     {
     }
 
@@ -661,6 +661,8 @@ The first scenario essentially means that we **can** still use the naive method 
 
 So how exactly do we follow trails? In theory you could create a system to automatically identify and follow trails, however I never implemented this and just manually followed trails visually. When following trails, there are a few ideas that can help. For example, multiple trails leading to the same place likely means there is a base. Knowing that a certain hit or trail was caused by a specific player can also help, more on that later.
 
-So how can we tell which player caused a certain hit? In the Overworld, we can simply look for "distinct" hits that happen right after a player joins. However, that is unlikely to work here, so we must do something else. There's actually a neat system for this. It's based on the assumption that not too many players are actually online in The End at once, and the idea that we can tell who these players are. The idea is that the number of RNG calls per tick is, in part, correlated to the number of currently loaded chunks, thus the number of players in that dimension. By watching for a sudden increase or decrease in the number of these calls right after a player joins or leaves respectively, we can identify players that are in The End.
+So how can we tell which player caused a certain hit? In the Overworld, we can simply look for "distinct" hits that happen right after a player joins. However, that is unlikely to work here, so we must do something else. There's actually a neat system for this. It's based on the assumption that not too many players are actually online in The End at once, and the idea that we can tell who these players are. The idea is that the number of RNG calls per tick is, in part, correlated to the number of currently loaded chunks, thus the number of players in that dimension. By watching for a sudden increase or decrease in the number of these calls right after a player joins or leaves respectively, we can identify players that are in The End. We will call this system the "End Occupancy Tracker" (EOT).
 
-We maintain two sets. The first keeps track of who we think is in The End "right now". This can miss players, so it is considered to be more prone to false negatives. The second keeps track of who we think **was** in The End "overall", backwards and forwards a certain amount of time. This gets combined with the players that are currently online, and is considered to be more prone to false positives. By looking at these sets when a hit occurs, and doing some manual inference, we can get a rough idea of who may have caused a certain hit.
+The EOT maintains two sets. The first keeps track of who we think is in The End "right now". This can miss players, so it is considered to be more prone to false negatives. The second keeps track of who we think **was** in The End "overall", backwards and forwards a certain amount of time. This gets combined with the players that are currently online, and is considered to be more prone to false positives. By looking at these sets when a hit occurs, and doing some manual inference, we can get a rough idea of who may have caused a certain hit.
+
+It should be noted that the EOT was only ever tested on 9b9t and currently may rely on conditions that may not be true on other servers such as 2b2t. It assumes that the RNG can be sampled every tick without much fluctuation, which may be trickier for 2b2t because of the block place speed limit. Things might also be made trickier if there is significantly more player activity in The End on the server, which could likely be true for 2b2t as it is a much larger server.
