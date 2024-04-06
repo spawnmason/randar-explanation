@@ -19,6 +19,8 @@ Every time a block is broken in Minecraft versions Beta 1.8 through 1.12.2, the 
 
 Randar was discovered by [n0pf0x](https://github.com/pcm1k) (pcm1k). This writeup was written by leijurv, with some additional commentary at the end written by n0pf0x. Exploiters were [0x22](https://github.com/0-x-2-2), [Babbaj](https://github.com/babbaj), [TheLampGod](https://github.com/thelampgod), [leijurv](https://github.com/leijurv), [Negative_Entropy](https://github.com/Entropy5) and [rebane2001](https://github.com/rebane2001).
 
+**Table of contents:** click [here](#more-detail) to learn about the exploitable code in more detail, [here](#lattice-reduction) to learn about how lattice reduction was used, [here](#protecting-our-own-stashes) to see how we protected our own stashes from Randar, [here](#complete-worked-example) if you just want to see the complete exploit code, or [here](#appendix-written-by-n0pf0x) for details on what n0pf0x did differently than us.
+
 Diagram of the mistake:
 ![randar diagram 1](media/randar_diagram_1.svg)
 
@@ -253,6 +255,32 @@ Here's a fun thought: What if we looked at what fraction of our measurements ind
 
 ![hourly crystals](media/hourly_crystals.png)
 
+### Protecting our own stashes
+
+One more thing: is it possible for this whole process to misidentify the most recently loaded chunk? Sure, it'll be wrong if you have the wrong server-side world seed, but let's assume that everything is working properly, and let's assume that it's a fairly busy server that has chunk loads practically every single tick. Is Randar guaranteed to produce the correct chunk? Well, as we just covered, the RNG can take thousands of steps between when the chunk is loaded and when we measure it, even in the best possible case of measuring the next tick. What if the RNG stepped into a different Woodland region? Then, an exploiter who steps backwards and simply returns the first match would hit that decoy, and get a false positive. It could be difficult to detect such a scenario too, even if you knew it was possible. How would you tell which was the real hit? Perhaps you could have heuristics such as "is it nearby or equivalent to a recent hit", but there is no way to know with total certainty.
+
+Now, recall that it is impossible to measure the RNG with less than 4 steps of lag, and if you're using a Fortune enchanted pickaxe to mine (which is plausible because of how duped Eff V picks on 2b2t are basically all fortune or silk), your minimum will be 5 because of the fortune item drop check. Recall this code:
+
+```java
+    // seed the random number generator deterministically in a way that's unique to this Woodland region
+    Random random = this.world.setRandomSeed(woodlandRegionX, woodlandRegionZ, 10387319);
+
+    // pick which chunk within this region will get the Woodland Mansion
+    int woodlandChunkX = woodlandRegionX * 80 + (random.nextInt(60) + random.nextInt(60)) / 2;
+    int woodlandChunkZ = woodlandRegionZ * 80 + (random.nextInt(60) + random.nextInt(60)) / 2;
+```
+
+In order to pick the location of the Woodland Mansion structure, `random.nextInt` is called four times, guaranteed, before anything else can observe any randomness.
+
+So, this raises the question. For a given server's world seed (2b2t's in our case), could we compute how big the gaps between Woodland regions are? There are about 2 billion Woodland regions, and 280 trillion possible states for `java.util.Random`. So, about one out of every ~130,000 RNG seeds is a woodland seed. In other words, the gap between Woodland regions is ~130,000 steps on average. But that's just on average, this is a random distribution and there totally could be outliers! We ran a scan through the entire space to get a complete picture of the distribution, and to my surprise, there are tens of thousands of Woodland regions that are only one step apart from each other! If the distribution was truly independently random, the odds of the next seed also being a Woodland region would be simply one out of ~130,000, which is the rate overall. I suspected there might be some, but I didn't ever run the math for how many to expect, so this was a fascinating surprise.
+
+It turns out that one out of every ~20k Woodland regions on 2b2t has this special hiding property, in that there is another Woodland region within the next four RNG steps! That means that if someone was running the Randar exploit and assuming that the most recent Woodland hit is genuine (which is reasonable! and we did ourselves!), they would **never** observe this region correctly, and **every** time they would think that the hit was at that second decoy Woodland region, no matter how good their heuristics are.
+
+On 2b2t while Randar was active, we wanted at least some level of safety, so we decided to build several stashes at regions such as this, carefully built so that the entire structure was compact enough that your render distance would never cause a chunk outside of this Woodland region to be loaded (because, such a chunk load would show up unprotected to a Randar exploiter!). We also stationed an AFK account and built a small base at the decoy location, so that if someone else discovered Randar, they'd see that decoy location light up brightly due to our stash activities, and they'd travel there and see a tiny base and no stash, and they'd maybe grief it but we wouldn't care because that base doesn't matter because the stash itself was protected.
+
+According to our own Randar logs, these stashes remained "clean" the entire time, in that we never accidentally loaded an adjacent Woodland region. As far as we know no one else used Randar, but if they had, this would have given our stashes an extra layer of protection.
+
+(obviously we have moved these stashes by now, otherwise this information would cause them to stick out like a sore thumb if anyone decided to run Randar against any ReplayMod recording from 2b2t from mid 2023)
 
 Now back to the fun part, lattices!
 
