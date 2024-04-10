@@ -17,9 +17,11 @@ Every time a block is broken in Minecraft versions Beta 1.8 through 1.12.2, the 
 5. We step the RNG state backwards in time until we find one that could have been caused by a Woodland Mansion check. Again broadly speaking, the internal state of `java.util.Random` can be stepped backwards just as easily as forwards, and by stepping backwards we can find it in just a few thousand steps (even on busy servers like 2b2t with many players and therefore heavy usage of RNG), which identifies the most recent time that the RNG's internal state was reset, and therefore the location of the most recent chunk that was loaded on the server.
 6. A heatmap is built up over time from that database, and we pay some of the hotspots a visit in game and maybe steal their stuff or generally just cause chaos. To find a specific person, we can associate login times to hits, as logging in causes a lot of chunks to load immediately.
 
+Even if you play on a server that has updated to a newer version of Minecraft, or has otherwise patched RNG manipulation, your coordinates are still at risk from Randar due to the ability to exploit RNG data retroactively. Some Minecraft players use mods like [ReplayMod](https://www.replaymod.com/) that log packets, and they might still have those log files sitting around. If anyone was using such a mod while you were at your base, they may have (unknowingly) recorded RNG data that could reveal your location, because breaking blocks is an extremely common action that's likely to have happened in such recordings, and every such block break reveals the server's RNG state and therefore the location of the most recently loaded chunk. This means Randar is a pretty big deal: due to this risk of exploiting retroactively, on **every** Minecraft server, **every** location that was active in versions Beta 1.8 through 1.12.2 should be considered compromised, **even if** the server has long since updated past 1.12.2 or patched RNG manipulation.
+
 Randar was discovered by [n0pf0x](https://github.com/pcm1k) (pcm1k). This writeup was written by leijurv, with some additional commentary at the end written by n0pf0x. Exploiters were [0x22](https://github.com/0-x-2-2), [Babbaj](https://github.com/babbaj), [TheLampGod](https://github.com/thelampgod), [leijurv](https://github.com/leijurv), [Negative_Entropy](https://github.com/Entropy5) and [rebane2001](https://github.com/rebane2001).
 
-**Table of contents:** click [here](#more-detail) to learn about the exploitable code in more detail, [here](#lattice-reduction) to learn about how lattice reduction was used, [here](#protecting-our-own-stashes) to see how we protected our own stashes from Randar, [here](#complete-worked-example) if you just want to see the complete exploit code, or [here](#appendix-written-by-n0pf0x) for details on what n0pf0x did differently than us.
+**Table of contents:** click [here](#more-detail) to learn about the exploitable code in more detail, [here](#lattice-reduction) to learn about how lattice reduction was used, [here](#protecting-our-own-stashes) to see how we protected our own stashes from Randar, [here](#complete-worked-example) if you just want to see the complete exploit code, [here](#patching) if you run a server that's still on a version between Beta 1.8 and 1.12.2 and you want to patch Randar, or [here](#appendix-written-by-n0pf0x) for details on what n0pf0x did differently than us.
 
 Diagram of the mistake:
 ![randar diagram 1](media/randar_diagram_1.svg)
@@ -492,6 +494,39 @@ jshell>
 ```
 
 And would you look at that, hidden deep within the digits of the coordinates of that item drop, the server was secretly revealing to us that there's someone on the -x highway at 15.4 million out. This secret information has been present in every item drop, on every server, on every version of the game until 1.13. For earlier than 1.11, you'll need other code because the exploitable structure is something else (not Woodland Mansion), starting when the Village was added as the first structure in Beta 1.8. Another thing to note is that before 1.9, item positions were sent to the client as fixed-point numbers (with only 5 bits dedicated to the fractional part), rather than doubles. This means that it is impractical to crack the RNG state with only one item position, and you'll likely need a different strategy to measure the state of `World.rand`.
+
+## Patching
+
+You can probably find patches or config options for disabling RNG manipulation, something like that will work for patching Randar and it's probably the easiest way. If you can't find an easy way to disable RNG manipulation, here is the code that needs to be tweaked in the `World` class:
+
+Vulnerable version:
+```java
+public Random setRandomSeed(int seedX, int seedY, int seedZ) {
+    this.rand.setSeed(seedX * 341873128712L + seedY * 132897987541L + seedZ + this.getWorldInfo().getSeed());
+    return this.rand;
+}
+```
+
+Simply change this function to instead return a different Random each time, if you want perfect protection:
+
+Patched version:
+```java
+public Random setRandomSeed(int seedX, int seedY, int seedZ) {
+    return new Random(seedX * 341873128712L + seedY * 132897987541L + seedZ + this.getWorldInfo().getSeed());
+}
+```
+
+That might not have great performance, so if you like you can introduce a new field, `separateRandOnlyForWorldGen`, which isn't shared with anything else, e.g.:
+
+```java
+
+private final Random separateRandOnlyForWorldGen = new Random(); // new field on the World class
+
+public Random setRandomSeed(int seedX, int seedY, int seedZ) {
+    this.separateRandOnlyForWorldGen.setSeed(seedX * 341873128712L + seedY * 132897987541L + seedZ + this.getWorldInfo().getSeed());
+    return this.separateRandOnlyForWorldGen;
+}
+```
 
 ## Appendix (written by n0pf0x)
 
