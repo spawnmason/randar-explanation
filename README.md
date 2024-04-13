@@ -23,11 +23,14 @@ Randar was discovered by [n0pf0x](https://github.com/pcm1k) (pcm1k). This writeu
 
 **Table of contents:** click [here](#more-detail) to learn about the exploitable code in more detail, [here](#lattice-reduction) to learn about how lattice reduction was used, [here](#protecting-our-own-stashes) to see how we protected our own stashes from Randar, [here](#complete-worked-example) if you just want to see the complete exploit code, [here](#patching) if you run a server that's still on a version between Beta 1.8 and 1.12.2 and you want to patch Randar, or [here](#appendix-written-by-n0pf0x) for details on what n0pf0x did differently than us.
 
-Diagram of the mistake:
+Diagram of the mistake ([as PDF](media/randar_diagram_1.pdf)):
 ![randar diagram 1](media/randar_diagram_1.svg)
 
-Diagram of the exploit:
+Diagram of the exploit ([as PDF](media/randar_diagram_3.pdf)):
 ![randar diagram 2](media/randar_diagram_2.svg)
+
+Diagram of a worked example of the exploit ([as PDF](media/randar_diagram_3.pdf)):
+![randar diagram 3](media/randar_diagram_3.svg)
 
 ## Brief history
 
@@ -476,7 +479,7 @@ private static void crackItemDropCoordinate(double dropX, double dropY, double d
         }
         seed = (seed * 246154705703781L + 107048004364969L) & 281474976710655L;
     }
-    System.out.println("Failed to crack. This probably means that your world seed is incorrect.");
+    System.out.println("Failed to crack. This probably means that your world seed is incorrect, or there were no chunk loads recently.");
 }
 ```
 
@@ -494,6 +497,25 @@ jshell>
 ```
 
 And would you look at that, hidden deep within the digits of the coordinates of that item drop, the server was secretly revealing to us that there's someone on the -x highway at 15.4 million out. This secret information has been present in every item drop, on every server, on every version of the game until 1.13. For earlier than 1.11, you'll need other code because the exploitable structure is something else (not Woodland Mansion), starting when the Village was added as the first structure in Beta 1.8. Another thing to note is that before 1.9, item positions were sent to the client as fixed-point numbers (with only 5 bits dedicated to the fractional part), rather than doubles. This means that it is impractical to crack the RNG state with only one item position, and you'll likely need a different strategy to measure the state of `World.rand`.
+
+### The worked example from the diagram
+
+![randar diagram 3](media/randar_diagram_3.svg)
+
+And on the coordinates used as a worked example in this diagram, this is what the above code outputs:
+
+```
+jshell> crackItemDropCoordinate(0.730696, 0.294929355, 0.634865435)
+Item drop appeared at 0.730696 0.294929355 0.634865435
+RNG measurements are therefore 16129481 1507579 12913941
+This indicates the java.util.Random internal seed must have been 270607788940196
+Found a woodland match at woodland region 123 456 which would have set the seed to 261215197308064
+Located someone between 157312,583552 and 158591,584831
+
+jshell> 
+```
+
+Note how it locates Woodland Region `123,456`, and note how the final "located someone between" does include the real coordinate that we had originally inputted, which was x=157440 z=583680. Additionally, the RNG measurements match the hexadecimal in red: `0xf61dc9` equals `16129481`, `0x1700fb` equals `1507579`, and `0xc50d15` equals `12913941`. And for the seeds, `0xed92e70ba4a0` equals `261215197308064` and `0xf61dc9221ba4` equals `270607788940196`.
 
 ## Patching
 
