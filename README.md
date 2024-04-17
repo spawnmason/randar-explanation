@@ -6,6 +6,8 @@ Every time a block is broken in Minecraft versions Beta 1.8 through 1.12.2, the 
 
 **Click [here](https://www.youtube.com/watch?v=maMpMOnIJDE) to learn about Randar in the form of a YouTube video instead.**
 
+**Watch the timelapse:**
+
 https://github.com/spawnmason/randar-explanation/assets/3837873/75c4de4a-6110-41fd-83e4-d1b89a332355
 
 See more timelapses [here (as files)](media/timelapse) or [here (as YouTube)](https://youtu.be/_HNPwGJgmaM).

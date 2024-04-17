@@ -1,0 +1,5 @@
+If you don't know what these are, go read: [https://randar.2b2t.website/](https://randar.2b2t.website/)
+
+[These timelapses](/media/timelapse) display all of our data collected on 2b2t from April 2023 to August 2023. The size shown is from -1.23M to +1.23M horizontally and from -691K to +691K vertically.
+
+More details: These are 60fps and 1 frame equals 20 minutes of real time, so one second in the video is 20 hours of real time. The timelapses are 1080p, and I have set one pixel equal to one Woodland region, which is 80 chunks. So, one pixel is 1280 by 1280 blocks. Precisely speaking, the horizontal size is 2,457,600 blocks (from X = -1,228,928 to X = +1,228,671), and the vertical size shown is 1,382,400 blocks (from Z = -691,328 to Z = 691,071). The upscaled versions don't have any additional information, I just put them through ffmpeg's `xbr=2` because I think it looks cool. The black/white and colored versions also don't have any additional information, it's just a different color scheme.
