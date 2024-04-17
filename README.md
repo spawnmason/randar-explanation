@@ -552,6 +552,8 @@ public Random setRandomSeed(int seedX, int seedY, int seedZ) {
 }
 ```
 
+**If you use PaperMC for 1.12.2**, [here](https://github.com/spawnmason/PaperWithRandarPatched/commit/a5cd8a5a4b1e031201bbc60c0580bbabbc0ee5b7) is a patch you can apply. [Alternate link](media/0386-Patch-RNG-reuse-that-could-lead-to-coord-exploit-Ran.patch).
+
 ## Appendix (written by n0pf0x)
 
 This will be an additional section where I go over some extra stuff that would make more sense to explain from my point-of-view, as other than the basic ideas, we mostly independently developed things.
