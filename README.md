@@ -8,7 +8,7 @@ Every time a block is broken in Minecraft versions Beta 1.8 through 1.12.2, the 
 
 https://github.com/spawnmason/randar-explanation/assets/3837873/75c4de4a-6110-41fd-83e4-d1b89a332355
 
-See more timelapses [here (as files)](media) or [here (as YouTube)](https://youtu.be/_HNPwGJgmaM).
+See more timelapses [here (as files)](media/timelapse) or [here (as YouTube)](https://youtu.be/_HNPwGJgmaM).
 
 **The goal** is to determine the in-game locations (i.e. coordinates) of the other players in the world, no matter how far away they are. We're playing on [2b2t](https://en.wikipedia.org/wiki/2b2t), which is the oldest and most famous "anarchy" Minecraft server (which means no rules, i.e. players aren't banned for any reason). Doing stuff like this is kind of "the point" on this server. On this server, the only thing keeping your stuff safe is that the map is huge (3.6 quadrillion square tiles) and no one else knows where you are. So it's a huge deal (a game-breaking deal) to have a coordinate exploit. (speaking of, before Randar we also had another coord exploit on 2b2t, Nocom, from 2018 to 2021; see that writeup [here](https://github.com/nerdsinspace/nocom-explanation/blob/main/README.md), [HackerNews thread](https://news.ycombinator.com/item?id=29615428), [YT](https://www.youtube.com/watch?v=elqAh3GWRpA))
 
