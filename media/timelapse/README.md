@@ -1,4 +1,4 @@
-If you don't know what these are, go read: [https://randar.2b2t.website/](https://randar.2b2t.website/)
+If you don't know what these are, go read [the README](/README.md)
 
 [These timelapses](/media/timelapse) display all of our data collected on 2b2t from April 2023 to August 2023. The size shown is from -1.23M to +1.23M horizontally and from -691K to +691K vertically.
 
