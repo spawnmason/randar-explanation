@@ -36,7 +36,7 @@ Randar was discovered by [n0pf0x](https://github.com/pcm1k) (pcm1k). This writeu
 Diagram of the mistake ([as PDF](media/randar_diagram_1.pdf)):
 ![randar diagram 1](media/randar_diagram_1.svg)
 
-Diagram of the exploit ([as PDF](media/randar_diagram_3.pdf)):
+Diagram of the exploit ([as PDF](media/randar_diagram_2.pdf)):
 ![randar diagram 2](media/randar_diagram_2.svg)
 
 Diagram of a worked example of the exploit ([as PDF](media/randar_diagram_3.pdf)):
